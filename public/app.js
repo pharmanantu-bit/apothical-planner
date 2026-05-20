@@ -52,6 +52,7 @@ const MOIS_FR = ['','Janvier','Février','Mars','Avril','Mai','Juin',
 let labos            = []    // tous les labos parsés
 let photoColIdx      = -1   // index colonne "photo" dans l'Excel
 let placement        = {}    // { zoneId: laboObject } — pour le mois courant
+let placementNotes   = {}    // { zoneId: noteText } — notes internes par zone
 let draggedId        = null  // id du labo en cours de drag
 let currentDetailId  = null  // labo ouvert dans le modal produits
 let createTargetZone = null  // zone cible du modal création
@@ -195,17 +196,6 @@ function loadFile(file) {
       })
 
       labos = Object.values(map)
-
-      // Détecter le mois du fichier
-      const firstDate = labos[0]?.debut || ''
-      const m = firstDate.match(/(\d{2})\/(\d{4})/)
-      if (m) {
-        const label = MOIS_FR[parseInt(m[1])] + ' ' + m[2]
-        const sel   = document.getElementById('month-select')
-        const match = Array.from(sel.options).find(o => o.value === label)
-        if (match) { sel.value = label; currentMonth = label }
-        else sel.value = ''
-      }
 
       // Nouveau fichier pour ce mois → vider le placement précédent
       currentFileName = file.name
@@ -431,6 +421,10 @@ function onDrop(e, zone) {
 
 // ─── RENDU ZONES ─────────────────────────────────────────────────────────────
 
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+}
+
 function renderChip(zoneId, labo) {
   const content = document.getElementById('content-' + zoneId)
   const zone    = document.getElementById('zone-' + zoneId)
@@ -442,12 +436,15 @@ function renderChip(zoneId, labo) {
       ? '✦ Apothical & Vous'
       : ''
 
+  const note = placementNotes[zoneId]
+
   content.innerHTML = `
     <div class="placed-chip" onclick="editZone('${zoneId}')" title="Cliquer pour modifier">
       <div class="chip-body">
         <div class="chip-name">${labo.labo}</div>
         <div class="chip-gamme">${labo.gamme}</div>
         ${offer ? `<div class="chip-offer">${offer}</div>` : ''}
+        ${note ? `<div class="chip-note">📝 ${escHtml(note)}</div>` : ''}
       </div>
       <button class="chip-remove" onclick="event.stopPropagation(); removeFromZone('${zoneId}')" title="Retirer">✕</button>
     </div>
@@ -466,6 +463,7 @@ function removeFromZone(zoneId) {
   const labo = placement[zoneId]
   if (!labo) return
   delete placement[zoneId]
+  delete placementNotes[zoneId]
   clearZone(zoneId)
   setCardPlaced(labo.id, false)
   updateFooter()
@@ -533,6 +531,7 @@ function clearAll() {
   if (!confirm('Réinitialiser tout le placement ?')) return
 
   placement = {}
+  placementNotes = {}
 
   document.querySelectorAll('.zone-content').forEach(c => {
     c.innerHTML = '<div class="zone-placeholder">—</div>'
@@ -574,35 +573,35 @@ function exportExcel() {
   add(aoa([['PLAN TRADE — ' + monthLabel], ['Synthèse à compléter manuellement']]), 'PLAN')
 
   // ── 2. TG
-  const tgRows = [['Commande à passer', 'TG', 'LABORATOIRE ET OPERATIONS PRODUITS', 'CIP', 'OFFRE PREVUE']]
+  const tgRows = [['Commande à passer', 'TG', 'LABORATOIRE ET OPERATIONS PRODUITS', 'CIP', 'OFFRE PREVUE', 'NOTES']]
   tgZones.forEach(([zone, l]) => {
     const ecran = ['TG9','TG10','TG11','TG12'].includes(zone)
     const label = ecran ? zone + ' (ECRAN)' : zone
-    tgRows.push(['ras', label, l.labo + (l.gamme ? ' — ' + l.gamme : ''), l.ean || '', offreLabel(l)])
+    tgRows.push(['ras', label, l.labo + (l.gamme ? ' — ' + l.gamme : ''), l.ean || '', offreLabel(l), placementNotes[zone] || ''])
   })
-  add(aoa(tgRows), 'TG', [18, 16, 55, 16, 20])
+  add(aoa(tgRows), 'TG', [18, 16, 55, 16, 20, 35])
 
   // ── 3. INTERCOMPTOIR
-  const icRows = [['INTERCOMPTOIR', 'LABORATOIRE ET OPERATIONS PRODUITS', 'CIP', 'OFFRE', 'TRADE']]
+  const icRows = [['INTERCOMPTOIR', 'LABORATOIRE ET OPERATIONS PRODUITS', 'CIP', 'OFFRE', 'TRADE', 'NOTES']]
   icZones.forEach(([zone, l]) => {
-    icRows.push([zone, l.labo + (l.gamme ? ' — ' + l.gamme : ''), l.ean || '', offreLabel(l), 'Trade'])
+    icRows.push([zone, l.labo + (l.gamme ? ' — ' + l.gamme : ''), l.ean || '', offreLabel(l), 'Trade', placementNotes[zone] || ''])
   })
-  add(aoa(icRows), 'INTERCOMPTOIR', [14, 55, 16, 20, 10])
+  add(aoa(icRows), 'INTERCOMPTOIR', [14, 55, 16, 20, 10, 35])
 
   // ── 4. FOND AVANCEE
-  const faRows = [['', 'LABORATOIRE', 'PRODUIT', 'CIP', 'OFFRE', 'TRADE']]
+  const faRows = [['', 'LABORATOIRE', 'PRODUIT', 'CIP', 'OFFRE', 'TRADE', 'NOTES']]
   faZones.forEach(([zone, l]) => {
-    faRows.push([zone, l.labo, l.gamme || l.titre, l.ean || '', offreLabel(l), 'Trade'])
+    faRows.push([zone, l.labo, l.gamme || l.titre, l.ean || '', offreLabel(l), 'Trade', placementNotes[zone] || ''])
   })
-  add(aoa(faRows), 'FOND AVANCEE', [6, 28, 50, 16, 24, 10])
+  add(aoa(faRows), 'FOND AVANCEE', [6, 28, 50, 16, 24, 10, 35])
 
   // ── 5. BRI RAYON (depuis les zones BRIR dédiées)
   const briRZones = entries.filter(([z]) => z.startsWith('BRIR')).sort(sortZone)
-  const briRows = [['Zone', 'Laboratoire', 'Produit / Gamme', 'Offre BRI']]
+  const briRows = [['Zone', 'Laboratoire', 'Produit / Gamme', 'Offre BRI', 'Notes']]
   briRZones.forEach(([zone, l]) => {
-    briRows.push([zone, l.labo, l.gamme || l.titre, l.hasBri ? `-${l.bri}€` : 'RAS'])
+    briRows.push([zone, l.labo, l.gamme || l.titre, l.hasBri ? `-${l.bri}€` : 'RAS', placementNotes[zone] || ''])
   })
-  add(aoa(briRows), 'BRI RAYON', [10, 28, 50, 12])
+  add(aoa(briRows), 'BRI RAYON', [10, 28, 50, 12, 35])
 
   // ── 6. ENTREE - OFFRES SAISON (solaires automatiquement)
   const entreeRows = [['', 'NOM DES PRODUITS', 'Offres']]
@@ -727,7 +726,7 @@ function exportCommandeExcel() {
   const month = document.getElementById('month-select').value || 'Plan'
   const wb    = XLSX.utils.book_new()
 
-  const rows = [['Zone', 'Laboratoire', 'Gamme / Produit', 'Offre', 'Période', 'Email', 'Forfait']]
+  const rows = [['Zone', 'Laboratoire', 'Gamme / Produit', 'Offre', 'Période', 'Email', 'Forfait', 'Notes']]
 
   SECTIONS_ORDER.forEach(({ key }) => {
     Object.entries(placement)
@@ -736,12 +735,12 @@ function exportCommandeExcel() {
       .forEach(([zone, l]) => {
         const offre  = l.hasBri ? `-${l.bri}€ BRI` : l.isApothical ? 'Apothical & Vous' : l.conditions || ''
         const dates  = l.debut && l.fin ? `${l.debut} → ${l.fin}` : l.debut || ''
-        rows.push([zone, l.labo, l.gamme || l.titre, offre, dates, l.email || '', l.forfait || ''])
+        rows.push([zone, l.labo, l.gamme || l.titre, offre, dates, l.email || '', l.forfait || '', placementNotes[zone] || ''])
       })
   })
 
   const ws = XLSX.utils.aoa_to_sheet(rows)
-  ws['!cols'] = [{ wch: 10 }, { wch: 28 }, { wch: 40 }, { wch: 20 }, { wch: 22 }, { wch: 30 }, { wch: 14 }]
+  ws['!cols'] = [{ wch: 10 }, { wch: 28 }, { wch: 40 }, { wch: 20 }, { wch: 22 }, { wch: 30 }, { wch: 14 }, { wch: 35 }]
   XLSX.utils.book_append_sheet(wb, ws, 'Commande')
   XLSX.writeFile(wb, `Commande_${month.replace(' ', '_')}.xlsx`)
   showToast('✅ Commande exportée')
@@ -758,6 +757,7 @@ function onMonthChange() {
   // Vider tout
   clearZonesUI()
   placement       = {}
+  placementNotes  = {}
   labos           = []
   photoColIdx     = -1
   currentFileName = ''
@@ -766,6 +766,14 @@ function onMonthChange() {
   // Charger les données du nouveau mois (ou afficher état vide)
   if (newMonth) loadMonthData(newMonth)
   else          resetUploadUI()
+
+  // Persister le mois sélectionné (saveDataToStorage précédent a sauvegardé l'ANCIEN mois)
+  try {
+    const raw   = localStorage.getItem(DATA_STORAGE_KEY)
+    const store = raw ? JSON.parse(raw) : { months: {}, currentMonth: '' }
+    store.currentMonth = newMonth
+    localStorage.setItem(DATA_STORAGE_KEY, JSON.stringify(store))
+  } catch (e) {}
 
   if (newMonth) showToast(`📅  ${newMonth}`)
 }
@@ -786,9 +794,10 @@ function loadMonthData(month) {
       resetUploadUI()
       return
     }
-    labos         = monthData.labos
-    photoColIdx   = typeof monthData.photoColIdx === 'number' ? monthData.photoColIdx : -1
+    labos          = monthData.labos
+    photoColIdx    = typeof monthData.photoColIdx === 'number' ? monthData.photoColIdx : -1
     currentFileName = monthData.fileName || month
+    placementNotes = monthData.placementNotes || {}
 
     const ids = monthData.placementIds || {}
     for (const [zone, laboId] of Object.entries(ids)) {
@@ -954,6 +963,7 @@ function editZone(zoneId) {
   document.getElementById('cf-offre').value   = labo.conditions || ''
   document.getElementById('cf-debut').value   = labo.debut     || ''
   document.getElementById('cf-fin').value     = labo.fin       || ''
+  document.getElementById('cf-notes').value   = placementNotes[zoneId] || ''
 
   const typeSelect = document.getElementById('cf-type')
   if (labo.hasBri) {
@@ -980,6 +990,7 @@ function openCreateModal(zoneId) {
   document.getElementById('create-form').reset()
   document.getElementById('cf-labo').readOnly = false
   document.getElementById('cf-bri-wrap').style.display = 'none'
+  document.getElementById('cf-notes').value = ''
   document.getElementById('btn-submit-create').textContent = 'Créer & Placer'
   document.getElementById('create-overlay').classList.add('open')
   setTimeout(() => document.getElementById('cf-labo').focus(), 80)
@@ -999,6 +1010,7 @@ function openCreateModalForDrop(zoneId, labo) {
   document.getElementById('cf-offre').value = labo.conditions || ''
   document.getElementById('cf-debut').value = labo.debut || ''
   document.getElementById('cf-fin').value   = labo.fin   || ''
+  document.getElementById('cf-notes').value = ''
 
   const typeSelect = document.getElementById('cf-type')
   if (labo.hasBri) {
@@ -1040,6 +1052,7 @@ function submitCreateOp(event) {
   const offre  = document.getElementById('cf-offre').value.trim()
   const debut  = document.getElementById('cf-debut').value.trim()
   const fin    = document.getElementById('cf-fin').value.trim()
+  const note   = document.getElementById('cf-notes').value.trim()
 
   if (!nom) return
 
@@ -1063,6 +1076,8 @@ function submitCreateOp(event) {
     if (isEditMode) {
       // Re-rendre le chip en place sans changer le placement
       placement[createTargetZone] = labo
+      if (note) placementNotes[createTargetZone] = note
+      else delete placementNotes[createTargetZone]
       renderChip(createTargetZone, labo)
       applyFilters()
       updateFooter()
@@ -1086,6 +1101,8 @@ function submitCreateOp(event) {
 
   if (createTargetZone && !placement[createTargetZone]) {
     placement[createTargetZone] = labo
+    if (note) placementNotes[createTargetZone] = note
+    else delete placementNotes[createTargetZone]
     renderChip(createTargetZone, labo)
     setCardPlaced(labo.id, true)
   }
@@ -1194,6 +1211,7 @@ function saveDataToStorage() {
       labos,
       photoColIdx,
       placementIds: ids,
+      placementNotes: { ...placementNotes },
       fileName: currentFileName || currentMonth,
     }
     store.currentMonth = currentMonth

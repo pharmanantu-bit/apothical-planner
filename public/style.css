@@ -516,6 +516,7 @@ header {
 .chip-name  { font-size: 12px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chip-gamme { font-size: 11px; color: var(--ink3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chip-offer { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--green); font-weight: 500; margin-top: 4px; }
+.chip-note  { font-size: 10.5px; color: var(--ink3); margin-top: 5px; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .placed-chip {
   cursor: pointer;
@@ -764,6 +765,19 @@ header {
 }
 .form-group input:focus,
 .form-group select:focus {
+  border-color: var(--blue-mid);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+  background: var(--white);
+}
+.form-group textarea {
+  width: 100%; font-family: 'Inter', sans-serif; font-size: 13px;
+  padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--surface); color: var(--ink);
+  outline: none; transition: border-color .15s, box-shadow .15s;
+  resize: vertical; min-height: 58px; line-height: 1.5;
+}
+.form-group textarea::placeholder { color: var(--ink4); }
+.form-group textarea:focus {
   border-color: var(--blue-mid);
   box-shadow: 0 0 0 3px rgba(37,99,235,.1);
   background: var(--white);
