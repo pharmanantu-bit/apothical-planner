@@ -146,6 +146,32 @@ function handleFileDrop(e) {
   if (f) loadFile(f)
 }
 
+// Détection dynamique des colonnes depuis les entêtes, avec fallback sur les index fixes
+function detectColumns(headers) {
+  const find = (...patterns) => {
+    for (const p of patterns) {
+      const i = headers.findIndex(h => h.includes(p))
+      if (i >= 0) return i
+    }
+    return null
+  }
+  return {
+    nom:      find('LABORATOIRE', 'LABO', 'NOM LAB') ?? 0,
+    debut:    find('DEBUT', 'DÉBUT', 'DATE DEB', 'DATE D') ?? 1,
+    fin:      find('FIN', 'DATE FIN', 'DATE F') ?? 2,
+    gamme:    find('GAMME', 'FAMILLE') ?? 3,
+    prodNom:  find('DESIGNATION', 'LIBELLÉ', 'LIBELLE', 'PRODUIT') ?? 4,
+    cip:      find('CIP', 'EAN', 'CODE') ?? 5,
+    titre:    find('TITRE', 'INTITUL', 'OPÉRATION', 'OPERATION') ?? 7,
+    offre:    find('OFFRE', 'CONDITION', 'REMISE', 'AVANTAGE') ?? 8,
+    typeZone: find('ZONE', 'EMPLACEMENT') ?? 9,
+    bri:      find('BRI', 'BON DE R') ?? 10,
+    photo:    find('PHOTO', 'PREUVE', 'JUSTIF') ?? -1,
+    email:    find('EMAIL', 'MAIL', 'CONTACT') ?? 17,
+    forfait:  find('FORFAIT', 'MONTANT') ?? 18,
+  }
+}
+
 function loadFile(file) {
   if (!file) return
   if (!file.name.match(/\.(xlsx|xls)$/i)) {
@@ -160,54 +186,89 @@ function loadFile(file) {
       const ws = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
 
-      // Ligne 0 = entêtes — détection colonne photo
-      const headers = (rows[0] || []).map(h => String(h).toUpperCase())
-      photoColIdx = headers.findIndex(h =>
-        h.includes('PHOTO') || h.includes('PREUVE') || h.includes('JUSTIF')
-      )
+      // Ligne 0 = entêtes — détection dynamique des colonnes
+      const headers = (rows[0] || []).map(h => String(h).toUpperCase().trim())
+      const cols    = detectColumns(headers)
+      photoColIdx   = cols.photo
 
-      const data = rows.slice(1).filter(r => {
-        const v = String(r[0]).trim()
-        return v && v !== 'NaN' && v !== 'Nom du laboratoire'
-      })
+      // Parsing avec gestion des lignes de continuation (nom vide = produit supplémentaire)
+      const map   = {}   // key → labo
+      const order = []   // clés dans l'ordre d'apparition
+      let lastKey = ''
 
-      // Dédupliquer par labo — 1 objet par labo, produits collectés
-      const map = {}
-      data.forEach(r => {
-        const nom = String(r[0]).trim()
-        if (!nom || nom === 'NaN') return
-        if (!map[nom]) {
-          map[nom] = buildLabo(nom, r)
-          map[nom].products = []
+      rows.slice(1).forEach(r => {
+        let nom = String(r[cols.nom] || '').trim()
+
+        // Ignorer entêtes répétés et lignes entièrement vides
+        if (!nom || nom === 'NAN' ||
+            nom.toUpperCase() === 'NOM DU LABORATOIRE' ||
+            nom.toUpperCase() === 'LABORATOIRE') {
+          // Ligne de continuation si on a un contexte
+          if (!nom && lastKey && map[lastKey]) {
+            nom = map[lastKey].labo
+          } else {
+            return
+          }
         }
-        const cip  = String(r[5]).trim()
-        const prod = String(r[4]).trim() || String(r[3]).trim()
+
+        const debut    = String(r[cols.debut]    || '').trim()
+        const fin      = String(r[cols.fin]      || '').trim()
+        const typeZone = String(r[cols.typeZone]  || '').trim()
+
+        // Clé unique par opération : même labo + même période + même zone = même op
+        const key = nom + '|||' + debut + '|||' + fin + '|||' + typeZone
+
+        if (!map[key]) {
+          map[key] = buildLabo(nom, r, cols, key)
+          map[key].products = []
+          order.push(key)
+        }
+        lastKey = key
+
+        // Collecter les produits de cette ligne
+        const cip  = String(r[cols.cip]    || '').trim()
+        const prod = String(r[cols.prodNom] || '').trim() || String(r[cols.gamme] || '').trim()
         if (cip || prod) {
-          const dup = map[nom].products.some(p => p.cip === cip && p.nom === prod)
+          const dup = map[key].products.some(p => p.cip === cip && p.nom === prod)
           if (!dup) {
-            const briVal = String(r[10]).trim()
+            const briVal    = String(r[cols.bri] || '').trim()
             const hasBriRow = briVal && briVal !== '-' && briVal !== '0' && parseFloat(briVal) > 0
-            const offre = hasBriRow
+            const offre     = hasBriRow
               ? `-${briVal}€ BRI`
-              : String(r[8]).trim() || ''
-            map[nom].products.push({ nom: prod, cip, offre })
+              : String(r[cols.offre] || '').trim() || ''
+            map[key].products.push({ nom: prod, cip, offre })
           }
         }
       })
 
-      labos = Object.values(map)
+      // Détecter les labos avec plusieurs opérations → label distinctif sur la carte
+      const nomCount = {}
+      order.forEach(k => { const n = map[k].labo; nomCount[n] = (nomCount[n] || 0) + 1 })
+      const nomSeen  = {}
+      order.forEach(k => {
+        const l = map[k]
+        if (nomCount[l.labo] > 1) {
+          nomSeen[l.labo] = (nomSeen[l.labo] || 0) + 1
+          l._opLabel = `op ${nomSeen[l.labo]}/${nomCount[l.labo]}`
+        }
+      })
+
+      labos = order.map(k => map[k])
+
+      const totalProducts = labos.reduce((s, l) => s + l.products.length, 0)
 
       // Nouveau fichier pour ce mois → vider le placement précédent
       currentFileName = file.name
       clearZonesUI()
-      placement = {}
+      placement      = {}
+      placementNotes = {}
 
       // UI upload
-      const zone = document.getElementById('upload-zone')
-      zone.classList.add('loaded')
+      const uploadZone = document.getElementById('upload-zone')
+      uploadZone.classList.add('loaded')
       document.getElementById('upload-icon').textContent = '✅'
       document.getElementById('upload-text').innerHTML =
-        `<strong>${file.name}</strong><br>${labos.length} laboratoires chargés`
+        `<strong>${file.name}</strong><br>${labos.length} opérations · ${totalProducts} produits`
       document.getElementById('header-hint').textContent =
         'Glisse les labos dans les zones à droite'
 
@@ -215,7 +276,7 @@ function loadFile(file) {
       updateFooter()
       document.getElementById('btn-export').disabled = false
       saveDataToStorage()
-      showToast(`✅  ${labos.length} laboratoires chargés`)
+      showToast(`✅  ${labos.length} opérations · ${totalProducts} produits chargés`)
     } catch (err) {
       showToast('❌  Erreur lecture fichier')
       console.error(err)
@@ -224,26 +285,40 @@ function loadFile(file) {
   reader.readAsArrayBuffer(file)
 }
 
-function buildLabo(nom, r) {
-  const bri       = String(r[10]).trim()
-  const hasBri    = bri && bri !== '-' && bri !== '0' && parseFloat(bri) > 0
-  const titre     = String(r[7]).trim()
-  const gamme     = String(r[3]).trim()
-  const cond      = String(r[8]).trim()
+function deleteCurrentFile() {
+  labos          = []
+  placement      = {}
+  placementNotes = {}
+  photoColIdx    = -1
+  currentFileName = ''
+
+  clearZonesUI()
+  resetUploadUI()
+  saveDataToStorage()
+  showToast('🗑  Fichier et opérations supprimés')
+}
+
+function buildLabo(nom, r, cols, key) {
+  const get = (idx) => String(r[idx] !== undefined ? r[idx] : '').trim()
+
+  const bri     = get(cols.bri)
+  const hasBri  = bri && bri !== '-' && bri !== '0' && parseFloat(bri) > 0
+  const titre   = get(cols.titre)
+  const gamme   = get(cols.gamme)
+  const cond    = get(cols.offre)
 
   const isApothical = titre.toUpperCase().includes('APOTHICAL')
   const isSolaire   = checkKeywords(gamme + ' ' + titre, [
     'ANTHELIOS','BARIESUN','CAPITAL SOLEIL','SUN SECURE','SOLAIRE',
-    'SOLAIRES','SUN PROTECTION','BARIESUN','SUNSCREEN'
+    'SOLAIRES','SUN PROTECTION','SUNSCREEN'
   ])
   const isBebe = checkKeywords(nom + ' ' + gamme, [
     'MUSTELA','BIOLANE','KLORANE BEBE','BEBE','LOVE & GREEN'
   ])
 
-  // Détection preuve photo requise
   let needsPhoto = false
   if (photoColIdx >= 0) {
-    const val = String(r[photoColIdx] || '').trim().toUpperCase()
+    const val = get(photoColIdx).toUpperCase()
     needsPhoto = val !== '' && val !== 'NON' && val !== 'N' && val !== '0' && val !== 'FALSE'
   }
   if (!needsPhoto) {
@@ -251,24 +326,24 @@ function buildLabo(nom, r) {
   }
 
   return {
-    id:          nom.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase(),
-    labo:        nom,
-    gamme:       gamme || titre.substring(0, 40),
-    titre:       titre.substring(0, 60),
-    type_zone:   String(r[9]).trim(),
-    bri:         hasBri ? bri : null,
+    id:         (key || nom).replace(/[^a-zA-Z0-9]/g, '_').toLowerCase(),
+    labo:       nom,
+    gamme:      gamme || titre.substring(0, 40),
+    titre:      titre.substring(0, 60),
+    type_zone:  get(cols.typeZone),
+    bri:        hasBri ? bri : null,
     hasBri,
     isApothical,
     isSolaire,
     isBebe,
     needsPhoto,
-    photoURL:    null,
-    debut:       String(r[1]).trim(),
-    fin:         String(r[2]).trim(),
-    ean:         String(r[5]).trim(),
-    conditions:  cond.substring(0, 150),
-    email:       String(r[17]).trim(),
-    forfait:     String(r[18]).trim(),
+    photoURL:   null,
+    debut:      get(cols.debut),
+    fin:        get(cols.fin),
+    ean:        get(cols.cip),
+    conditions: cond.substring(0, 150),
+    email:      get(cols.email),
+    forfait:    get(cols.forfait),
   }
 }
 
@@ -304,6 +379,7 @@ function buildLaboCardHTML(l) {
   else               badges.push(`<span class="badge b-tg">TG</span>`)
   if (l.isSolaire)   badges.push(`<span class="badge b-solaire">☀ Solaire</span>`)
   if (l.isBebe)      badges.push(`<span class="badge b-bebe">👶 Bébé</span>`)
+  if (l._opLabel)    badges.push(`<span class="badge b-op">${l._opLabel}</span>`)
 
   return `
     <div
