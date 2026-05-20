@@ -1,0 +1,14 @@
+{
+  "name": "apothical-planner",
+  "version": "1.0.0",
+  "description": "Plan Trade — Pharmacie Apothical Nanterre Université",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
