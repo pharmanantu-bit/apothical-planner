@@ -70,12 +70,18 @@
       <button class="btn-commander" onclick="openCommanderModal()">
         🛒 Commander
       </button>
+      <button class="btn-depot-modal" onclick="openDepotModal()">
+        📦 Dépôt
+      </button>
       <input type="file" id="plan-file-input" accept=".pdf,image/*" style="display:none" onchange="loadPlanFile(this.files[0])">
     </div>
     <div class="header-right">
       <span class="header-hint" id="header-hint">Importe operations.xlsx pour commencer</span>
       <button class="btn-ghost" onclick="clearAll()">🗑 Réinitialiser</button>
       <button class="btn-ghost" onclick="exportExcel()">⬇ Exporter Excel</button>
+      <button class="btn-ghost" onclick="exportBackup()" title="Télécharger une sauvegarde complète (données + plan pharmacie)">💾 Sauvegarder</button>
+      <button class="btn-ghost" onclick="document.getElementById('backup-file-input').click()" title="Restaurer depuis une sauvegarde">📂 Restaurer</button>
+      <input type="file" id="backup-file-input" accept=".json" style="display:none" onchange="importBackup(this.files[0])">
     </div>
   </header>
 
@@ -112,6 +118,14 @@
           <option value="bebe">👶  Bébé</option>
           <option value="placed">✅  Placés</option>
           <option value="unplaced">⬜  Non placés</option>
+          <option value="depot">📦  En dépôt</option>
+        </select>
+        <select id="sort-select" onchange="onSortChange(this.value)" title="Trier la liste">
+          <option value="az">🔤  A → Z</option>
+          <option value="import">📋  Ordre import</option>
+          <option value="bri">🟢  BRI en premier</option>
+          <option value="unplaced">⬜  Non placés d'abord</option>
+          <option value="placed">✅  Placés d'abord</option>
         </select>
       </div>
 
@@ -329,6 +343,7 @@
           </div>
           <div class="plan-sep"></div>
           <button class="btn-plan-action" onclick="rotatePlan()" title="Rotation 90°">⟳ Rotation</button>
+          <button class="btn-plan-action" id="btn-save-rotation" onclick="savePlanRotation()" title="Sauvegarder la rotation actuelle">💾 Sauvegarder</button>
           <button class="btn-plan-action" onclick="document.getElementById('plan-file-input').click()" title="Changer de fichier">↻ Changer</button>
           <button class="modal-close" onclick="closePlanModal()">✕</button>
         </div>
@@ -367,9 +382,10 @@
       <div class="modal-body create-form-body">
         <form id="create-form" onsubmit="submitCreateOp(event)">
 
-          <div class="form-group">
+          <div class="form-group" style="position:relative">
             <label>Nom du laboratoire <span class="req">*</span></label>
-            <input type="text" id="cf-labo" required placeholder="ex : URGO, PIERRE FABRE…" autocomplete="off" />
+            <input type="text" id="cf-labo" required placeholder="ex : URGO, PIERRE FABRE…" autocomplete="off" oninput="laboAutocomplete(this.value)" />
+            <div id="labo-suggestions" class="labo-suggestions" style="display:none"></div>
           </div>
 
           <div class="form-group">
@@ -432,7 +448,10 @@
           <div class="modal-labo-name" id="modal-labo-name"></div>
           <div class="modal-dates" id="modal-dates"></div>
         </div>
-        <button class="modal-close" onclick="closeModal()">✕</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn-primary" style="font-size:12px;padding:7px 16px" onclick="exportLaboCIP()" title="Exporter les produits et CIP pour vérification stock">⬇ Extraction CIP</button>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
       </div>
 
       <div class="modal-meta">
@@ -447,6 +466,7 @@
               <th>Produit / Gamme</th>
               <th class="col-cip">Code CIP</th>
               <th class="col-offre">Offre prévue</th>
+              <th class="col-depot">📦 Dépôt</th>
               <th class="col-actions"></th>
             </tr>
           </thead>
@@ -457,9 +477,30 @@
     </div>
   </div>
 
+  <!-- ═══ MODAL DÉPÔT ═══ -->
+  <div id="depot-overlay" class="modal-overlay" onclick="closeDepotModal()">
+    <div class="modal-panel commander-panel" onclick="event.stopPropagation()">
+
+      <div class="modal-header">
+        <div class="modal-header-info">
+          <div class="modal-labo-name">📦 Produits disponibles au dépôt</div>
+          <div class="modal-dates" id="depot-count-label"></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn-primary" style="font-size:12px;padding:7px 16px" onclick="exportDepotExcel()">⬇ Exporter</button>
+          <button class="modal-close" onclick="closeDepotModal()">✕</button>
+        </div>
+      </div>
+
+      <div class="modal-body" id="depot-body"></div>
+
+    </div>
+  </div>
+
   <!-- TOAST -->
   <div id="toast"></div>
 
+  <script src="plan_data.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

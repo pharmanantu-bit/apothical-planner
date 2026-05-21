@@ -276,6 +276,7 @@ function loadFile(file) {
       updateFooter()
       document.getElementById('btn-export').disabled = false
       saveDataToStorage()
+      saveExcelToStorage(e.target.result, file.name)
       showToast(`✅  ${labos.length} opérations · ${totalProducts} produits chargés`)
     } catch (err) {
       showToast('❌  Erreur lecture fichier')
@@ -283,6 +284,18 @@ function loadFile(file) {
     }
   }
   reader.readAsArrayBuffer(file)
+}
+
+function saveExcelToStorage(arrayBuffer, fileName) {
+  try {
+    const bytes = new Uint8Array(arrayBuffer)
+    const chunks = []
+    for (let i = 0; i < bytes.byteLength; i += 8192) {
+      chunks.push(String.fromCharCode(...bytes.subarray(i, i + 8192)))
+    }
+    const b64 = btoa(chunks.join(''))
+    localStorage.setItem(EXCEL_STORAGE_KEY, JSON.stringify({ data: b64, name: fileName }))
+  } catch (e) {}
 }
 
 function deleteCurrentFile() {
@@ -354,6 +367,24 @@ function checkKeywords(str, keywords) {
 
 // ─── RENDU LISTE LABOS ───────────────────────────────────────────────────────
 
+let currentSort = 'az'
+
+function onSortChange(val) {
+  currentSort = val
+  applyFilters()
+}
+
+function sortList(list) {
+  switch (currentSort) {
+    case 'az':      return [...list].sort((a, b) => a.labo.localeCompare(b.labo, 'fr'))
+    case 'za':      return [...list].sort((a, b) => b.labo.localeCompare(a.labo, 'fr'))
+    case 'bri':     return [...list].sort((a, b) => (b.hasBri ? 1 : 0) - (a.hasBri ? 1 : 0))
+    case 'placed':  return [...list].sort((a, b) => (isPlaced(b.id) ? 1 : 0) - (isPlaced(a.id) ? 1 : 0))
+    case 'unplaced':return [...list].sort((a, b) => (isPlaced(a.id) ? 1 : 0) - (isPlaced(b.id) ? 1 : 0))
+    default:        return list
+  }
+}
+
 function renderLaboList(list) {
   const container = document.getElementById('labo-list')
   const count     = document.getElementById('labo-count')
@@ -367,7 +398,21 @@ function renderLaboList(list) {
   const placed = list.filter(l => isPlaced(l.id)).length
   count.textContent = `${list.length} labos · ${placed} placés · ${list.length - placed} restants`
 
-  container.innerHTML = list.map(l => buildLaboCardHTML(l)).join('')
+  const sorted = sortList(list)
+
+  // Grouper par nom de labo avec un header par groupe
+  let html = ''
+  let lastLabo = null
+  sorted.forEach(l => {
+    if (l.labo !== lastLabo) {
+      const opCount = sorted.filter(x => x.labo === l.labo).length
+      const countBadge = opCount > 1 ? `<span class="group-count">${opCount}</span>` : ''
+      html += `<div class="labo-group-header">${l.labo}${countBadge}</div>`
+      lastLabo = l.labo
+    }
+    html += buildLaboCardHTML(l)
+  })
+  container.innerHTML = html
 }
 
 function buildLaboCardHTML(l) {
@@ -380,6 +425,8 @@ function buildLaboCardHTML(l) {
   if (l.isSolaire)   badges.push(`<span class="badge b-solaire">☀ Solaire</span>`)
   if (l.isBebe)      badges.push(`<span class="badge b-bebe">👶 Bébé</span>`)
   if (l._opLabel)    badges.push(`<span class="badge b-op">${l._opLabel}</span>`)
+  const depotCount = (l.products || []).filter(p => p.depot).length
+  if (depotCount)    badges.push(`<span class="badge b-depot">📦 ${depotCount} dépôt</span>`)
 
   return `
     <div
@@ -413,6 +460,7 @@ function applyFilters() {
     bebe:    l => l.isBebe,
     placed:  l => isPlaced(l.id),
     unplaced:l => !isPlaced(l.id),
+    depot:   l => (l.products || []).some(p => p.depot),
   }
   if (typeMap[type]) filtered = filtered.filter(typeMap[type])
 
@@ -473,13 +521,17 @@ function onDrop(e, zone) {
 
   const labo   = labos.find(l => l.id === draggedId)
   const zoneId = zone.dataset.zone
-  draggedId    = null
+
+  // Retirer la classe dragging avant de nullifier draggedId
+  document.getElementById('card-' + draggedId)?.classList.remove('dragging')
+  draggedId = null
 
   if (!labo) return
 
   // Zone déjà occupée
   if (placement[zoneId]) {
     showToast('⚠️  Zone occupée — retire d\'abord le labo présent')
+    setCardPlaced(labo.id, false)
     return
   }
 
@@ -488,6 +540,7 @@ function onDrop(e, zone) {
     if (l.id === labo.id) {
       delete placement[z]
       clearZone(z)
+      setCardPlaced(labo.id, false)
     }
   }
 
@@ -796,6 +849,90 @@ function closeCommanderModal() {
   document.getElementById('commander-overlay').classList.remove('open')
 }
 
+// ─── MODAL DÉPÔT ──────────────────────────────────────────────────────────────
+
+function openDepotModal() {
+  const body = document.getElementById('depot-body')
+
+  // Collecter tous les produits marqués dépôt, groupés par labo
+  const groups = []
+  labos.forEach(l => {
+    const depotProducts = (l.products || []).filter(p => p.depot)
+    if (depotProducts.length) groups.push({ labo: l, products: depotProducts })
+  })
+
+  const totalProduits = groups.reduce((s, g) => s + g.products.length, 0)
+  document.getElementById('depot-count-label').textContent =
+    groups.length ? `${groups.length} labo${groups.length > 1 ? 's' : ''} · ${totalProduits} produit${totalProduits > 1 ? 's' : ''}` : ''
+
+  if (!groups.length) {
+    body.innerHTML = `<div class="cmd-empty">Aucun produit marqué au dépôt.<br><small>Ouvrez un laboratoire dans la sidebar et cliquez sur 📦 Dépôt pour chaque produit disponible.</small></div>`
+    document.getElementById('depot-overlay').classList.add('open')
+    return
+  }
+
+  let html = ''
+  groups.forEach(({ labo: l, products }) => {
+    const zone = Object.entries(placement).find(([, pl]) => pl.id === l.id)?.[0] || '—'
+    html += `
+    <div class="cmd-section">
+      <div class="cmd-section-title">
+        ${l.labo}
+        <span style="font-weight:400;color:var(--ink4)">${l.gamme || ''}</span>
+        ${zone !== '—' ? `<span class="cmd-status ok" style="margin-left:8px">✓ ${zone}</span>` : ''}
+      </div>
+      <div class="cmd-row cmd-header">
+        <div class="cmd-cell" style="flex:2">Désignation produit</div>
+        <div class="cmd-cell" style="flex:1">Code CIP 13</div>
+        <div class="cmd-cell" style="flex:1">Offre</div>
+      </div>`
+
+    products.forEach(p => {
+      html += `
+      <div class="cmd-row">
+        <div class="cmd-cell" style="flex:2">${p.nom || '—'}</div>
+        <div class="cmd-cell" style="flex:1;font-family:monospace;color:var(--blue-mid)">${p.cip || '—'}</div>
+        <div class="cmd-cell" style="flex:1;color:var(--green)">${p.offre || '—'}</div>
+      </div>`
+    })
+
+    html += `</div>`
+  })
+
+  body.innerHTML = html
+  document.getElementById('depot-overlay').classList.add('open')
+}
+
+function closeDepotModal() {
+  document.getElementById('depot-overlay').classList.remove('open')
+}
+
+function exportDepotExcel() {
+  const groups = []
+  labos.forEach(l => {
+    const depotProducts = (l.products || []).filter(p => p.depot)
+    if (depotProducts.length) groups.push({ labo: l, products: depotProducts })
+  })
+
+  if (!groups.length) { showToast('⚠️  Aucun produit au dépôt'); return }
+
+  const rows = [['Laboratoire', 'Gamme', 'Désignation produit', 'Code CIP 13', 'Offre', 'Zone placée', 'Qté en stock']]
+  groups.forEach(({ labo: l, products }) => {
+    const zone = Object.entries(placement).find(([, pl]) => pl.id === l.id)?.[0] || ''
+    products.forEach(p => {
+      rows.push([l.labo, l.gamme || '', p.nom || '', p.cip || '', p.offre || '', zone, ''])
+    })
+  })
+
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  ws['!cols'] = [{ wch: 28 }, { wch: 22 }, { wch: 40 }, { wch: 16 }, { wch: 22 }, { wch: 10 }, { wch: 14 }]
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Dépôt')
+  const date = new Date().toLocaleDateString('fr-FR').replace(/\//g, '-')
+  XLSX.writeFile(wb, `Depot_${currentMonth.replace(' ', '_') || date}.xlsx`)
+  showToast('✅  Export dépôt généré')
+}
+
 function exportCommandeExcel() {
   if (!Object.keys(placement).length) { showToast('⚠️ Aucune opération placée'); return }
 
@@ -910,7 +1047,9 @@ function resetUploadUI() {
 
 let planObjectURL = null
 let planRotation  = 0
-const PLAN_STORAGE_KEY = 'apothical_plan_v1'
+const PLAN_STORAGE_KEY     = 'apothical_plan_v1'
+const ROTATION_STORAGE_KEY = 'apothical_plan_rotation_v1'
+const EXCEL_STORAGE_KEY    = 'apothical_excel_v1'
 const DATA_STORAGE_KEY = 'apothical_data_v1'
 let planZoom      = 1
 let planPanX      = 0
@@ -940,6 +1079,24 @@ function resetZoom() {
 function rotatePlan() {
   planRotation = (planRotation + 90) % 360
   applyPlanTransform()
+  saveRotationToStorage()
+}
+
+function saveRotationToStorage() {
+  try {
+    localStorage.setItem(ROTATION_STORAGE_KEY, String(planRotation))
+  } catch (e) {}
+}
+
+function savePlanRotation() {
+  saveRotationToStorage()
+  const btn = document.getElementById('btn-save-rotation')
+  btn.textContent = '✓ Sauvegardé'
+  btn.style.color = '#2a7a4b'
+  setTimeout(() => {
+    btn.textContent = '💾 Sauvegarder'
+    btn.style.color = ''
+  }, 2000)
 }
 
 function loadPlanFile(file) {
@@ -1000,10 +1157,20 @@ function savePlanToStorage(dataURL, fileName) {
 function restorePlanFromStorage() {
   try {
     const saved = localStorage.getItem(PLAN_STORAGE_KEY)
-    if (!saved) return
+    if (!saved) {
+      if (window.DEFAULT_PLAN) {
+        displayPlan(window.DEFAULT_PLAN.dataURL, window.DEFAULT_PLAN.fileName)
+        savePlanToStorage(window.DEFAULT_PLAN.dataURL, window.DEFAULT_PLAN.fileName)
+        const savedRotation = parseInt(localStorage.getItem(ROTATION_STORAGE_KEY) || '0', 10)
+        if (savedRotation) { planRotation = savedRotation; applyPlanTransform(false) }
+      }
+      return
+    }
     const { dataURL, fileName } = JSON.parse(saved)
     if (!dataURL || !fileName) return
     displayPlan(dataURL, fileName)
+    const savedRotation = parseInt(localStorage.getItem(ROTATION_STORAGE_KEY) || '0', 10)
+    if (savedRotation) { planRotation = savedRotation; applyPlanTransform(false) }
     // Ne pas rouvrir le modal automatiquement — juste activer le bouton
     document.getElementById('plan-modal').classList.remove('open')
     document.getElementById('btn-plan').classList.add('has-plan')
@@ -1108,9 +1275,71 @@ function openCreateModalForDrop(zoneId, labo) {
 
 function closeCreateModal() {
   document.getElementById('create-overlay').classList.remove('open')
+  document.getElementById('labo-suggestions').style.display = 'none'
+
+  // Si on annule un drop (pas une édition), remettre la carte disponible dans la sidebar
+  if (createSourceLabo && !isEditMode) {
+    setCardPlaced(createSourceLabo.id, false)
+  }
+
   createTargetZone = null
   createSourceLabo = null
   isEditMode       = false
+}
+
+// ─── AUTOCOMPLETE LABO ───────────────────────────────────────────────────────
+
+let laboSuggestionsData = []
+
+function laboAutocomplete(q) {
+  const box     = document.getElementById('labo-suggestions')
+  const trimmed = q.trim().toLowerCase()
+
+  if (!trimmed || !labos.length) { box.style.display = 'none'; return }
+
+  laboSuggestionsData = labos.filter(l =>
+    (l.labo || '').toLowerCase().includes(trimmed) ||
+    (l.gamme || '').toLowerCase().includes(trimmed)
+  ).slice(0, 20)
+
+  if (!laboSuggestionsData.length) { box.style.display = 'none'; return }
+
+  box.innerHTML = laboSuggestionsData.map((l, i) => {
+    const offre  = l.bri ? `BRI −${l.bri}€` : (l.conditions || '')
+    const dates  = (l.debut || l.fin) ? `${l.debut}${l.fin ? ' → ' + l.fin : ''}` : ''
+    const badge  = l.hasBri ? '<span class="sug-badge bri">BRI</span>'
+                 : l.isApothical ? '<span class="sug-badge av">A&V</span>'
+                 : l.isSolaire   ? '<span class="sug-badge sol">☀</span>' : ''
+    return `
+    <div class="labo-suggestion-item" data-idx="${i}">
+      <div class="suggestion-row-top">
+        <span class="suggestion-name">${l.labo}</span>
+        ${badge}
+      </div>
+      ${l.gamme ? `<div class="suggestion-gamme">${l.gamme}</div>` : ''}
+      <div class="suggestion-meta">
+        ${offre ? `<span>${offre}</span>` : ''}
+        ${dates ? `<span class="suggestion-dates">${dates}</span>` : ''}
+      </div>
+    </div>`
+  }).join('')
+
+  box.querySelectorAll('.labo-suggestion-item').forEach(el => {
+    el.addEventListener('mousedown', e => {
+      e.preventDefault()
+      const m = laboSuggestionsData[+el.dataset.idx]
+      selectLaboSuggestion(m.labo, m.gamme, m.conditions)
+    })
+  })
+
+  box.style.display = 'block'
+}
+
+function selectLaboSuggestion(nom, gamme, offre) {
+  document.getElementById('cf-labo').value  = nom
+  if (gamme) document.getElementById('cf-gamme').value  = gamme
+  if (offre) document.getElementById('cf-offre').value  = offre
+  document.getElementById('labo-suggestions').style.display = 'none'
 }
 
 function toggleBriField() {
@@ -1216,26 +1445,81 @@ function showDetail(laboId) {
 
 function renderProductsTable(l) {
   const products = l.products || []
-  document.getElementById('modal-count').textContent =
-    products.length ? `${products.length} produit${products.length > 1 ? 's' : ''}` : ''
+  const depotCount = products.filter(p => p.depot).length
+  const countParts = []
+  if (products.length) countParts.push(`${products.length} produit${products.length > 1 ? 's' : ''}`)
+  if (depotCount)      countParts.push(`📦 ${depotCount} en dépôt`)
+  document.getElementById('modal-count').textContent = countParts.join('  ·  ')
 
   const tbody = document.getElementById('products-tbody')
   if (!products.length) {
-    tbody.innerHTML = `<tr class="empty-row"><td colspan="4">Aucun produit trouvé</td></tr>`
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="5">Aucun produit trouvé</td></tr>`
     return
   }
   tbody.innerHTML = products.map((p, i) => `
-    <tr>
+    <tr class="${p.depot ? 'row-depot' : ''}">
       <td>${p.nom || '<em style="color:var(--ink4)">—</em>'}</td>
       <td class="cip-cell">
         <span class="cip-value">${p.cip || '—'}</span>
         ${p.cip ? `<button class="row-btn copy cip-copy-btn" onclick="copyProductRow(${i})" title="Copier le CIP">⎘</button>` : ''}
       </td>
       <td class="offre-cell">${p.offre || '<em style="color:var(--ink4)">—</em>'}</td>
+      <td class="depot-cell">
+        <button class="btn-depot ${p.depot ? 'active' : ''}" onclick="toggleDepot(${i})" title="${p.depot ? 'Retirer du dépôt' : 'Marquer comme disponible au dépôt'}">
+          📦 ${p.depot ? 'En dépôt' : 'Dépôt'}
+        </button>
+      </td>
       <td class="row-actions">
         <button class="row-btn del" onclick="deleteProductRow(${i})" title="Supprimer">✕</button>
       </td>
     </tr>`).join('')
+}
+
+function toggleDepot(idx) {
+  const l = labos.find(x => x.id === currentDetailId)
+  if (!l || !l.products[idx]) return
+  l.products[idx].depot = !l.products[idx].depot
+  renderProductsTable(l)
+  // Mettre à jour le badge dépôt sur la carte sidebar
+  const hasDepot = l.products.some(p => p.depot)
+  const card = document.getElementById('card-' + l.id)
+  if (card) {
+    const existing = card.querySelector('.b-depot')
+    if (hasDepot && !existing) {
+      card.querySelector('.labo-card-badges')?.insertAdjacentHTML('beforeend', '<span class="badge b-depot">📦 Dépôt</span>')
+    } else if (!hasDepot && existing) {
+      existing.remove()
+    }
+  }
+  saveDataToStorage()
+  showToast(l.products[idx].depot ? '📦  Produit marqué au dépôt' : '↩  Retiré du dépôt')
+}
+
+function exportLaboCIP() {
+  const l = labos.find(x => x.id === currentDetailId)
+  if (!l) return
+  const products = (l.products || []).filter(p => p.cip || p.nom)
+  if (!products.length) { showToast('⚠️  Aucun produit à exporter'); return }
+
+  const rows = [
+    ['Laboratoire', l.labo, '', ''],
+    ['Période', `${l.debut || ''} → ${l.fin || ''}`, '', ''],
+    ['Gamme', l.gamme || '', '', ''],
+    [],
+    ['Désignation produit', 'Code CIP 13', 'Offre', 'DÉPÔT', 'Qté en stock'],
+    ...products.map(p => [p.nom || '', p.cip || '', p.offre || '', p.depot ? '📦 OUI' : '', ''])
+  ]
+
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  ws['!cols'] = [{ wch: 42 }, { wch: 16 }, { wch: 28 }, { wch: 10 }, { wch: 14 }]
+
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Produits CIP')
+
+  const safeName = l.labo.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30)
+  const date = new Date().toLocaleDateString('fr-FR').replace(/\//g, '-')
+  XLSX.writeFile(wb, `CIP_${safeName}_${date}.xlsx`)
+  showToast(`⬇  ${products.length} produit(s) exportés`)
 }
 
 function copyProductRow(idx) {
@@ -1310,4 +1594,40 @@ function restoreDataFromStorage() {
 
     loadMonthData(month)
   } catch (e) {}
+}
+
+// ─── SAUVEGARDE / RESTAURATION COMPLÈTE ─────────────────────────────────────
+
+function exportBackup() {
+  const data  = localStorage.getItem(DATA_STORAGE_KEY)
+  const plan  = localStorage.getItem(PLAN_STORAGE_KEY)
+  const excel = localStorage.getItem(EXCEL_STORAGE_KEY)
+  if (!data && !plan) { showToast('⚠️  Aucune donnée à sauvegarder'); return }
+  const backup = JSON.stringify({ data, plan, excel, version: 2, date: new Date().toISOString() })
+  const blob = new Blob([backup], { type: 'application/json' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `apothical_backup_${new Date().toLocaleDateString('fr-FR').replace(/\//g, '-')}.json`
+  a.click()
+  URL.revokeObjectURL(a.href)
+  showToast('💾  Sauvegarde exportée')
+}
+
+function importBackup(file) {
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = e => {
+    try {
+      const backup = JSON.parse(e.target.result)
+      if (!backup.data && !backup.plan) throw new Error('invalid')
+      if (backup.data)  localStorage.setItem(DATA_STORAGE_KEY,  backup.data)
+      if (backup.plan)  localStorage.setItem(PLAN_STORAGE_KEY,  backup.plan)
+      if (backup.excel) localStorage.setItem(EXCEL_STORAGE_KEY, backup.excel)
+      showToast('✅  Sauvegarde restaurée — rechargement…')
+      setTimeout(() => location.reload(), 1400)
+    } catch {
+      showToast('❌  Fichier de sauvegarde invalide')
+    }
+  }
+  reader.readAsText(file)
 }

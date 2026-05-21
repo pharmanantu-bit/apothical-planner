@@ -150,6 +150,22 @@ header {
   border-color: rgba(21,128,61,.7);
 }
 
+.btn-depot-modal {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px; font-weight: 600;
+  cursor: pointer; padding: 6px 14px;
+  border-radius: var(--r-sm);
+  border: 1px solid rgba(234,179,8,.4);
+  background: rgba(234,179,8,.12);
+  color: #fbbf24;
+  transition: all .15s; white-space: nowrap;
+}
+.btn-depot-modal:hover {
+  background: rgba(234,179,8,.22);
+  color: #fde68a;
+  border-color: rgba(234,179,8,.6);
+}
+
 .btn-plan {
   font-family: 'Inter', sans-serif;
   font-size: 12px; font-weight: 500;
@@ -262,7 +278,7 @@ header {
 .upload-zone.loaded .upload-delete-btn { display: inline-block; }
 
 /* Filter dropdown */
-.filter-wrap { padding: 12px 12px 0; flex-shrink: 0; }
+.filter-wrap { padding: 12px 12px 0; flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; }
 .filter-wrap select {
   width: 100%; font-family: 'Inter', sans-serif;
   font-size: 13px; padding: 8px 32px 8px 12px;
@@ -296,6 +312,21 @@ header {
   border-color: var(--blue-mid);
   box-shadow: 0 0 0 3px rgba(37,99,235,.1);
   background: var(--white);
+}
+
+/* Group headers */
+.labo-group-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 14px 4px;
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--ink3);
+  border-top: 1px solid var(--surface2); margin-top: 4px;
+}
+.labo-group-header:first-child { border-top: none; margin-top: 0; }
+.group-count {
+  background: var(--surface2); color: var(--ink3);
+  font-size: 10px; font-weight: 700;
+  padding: 1px 6px; border-radius: 10px;
 }
 
 /* Labo count */
@@ -756,6 +787,30 @@ header {
 .create-panel { width: 500px; }
 .create-form-body { padding: 20px; }
 
+/* Autocomplete labo */
+.labo-suggestions {
+  position: absolute; top: calc(100% + 2px); left: 0; right: 0; z-index: 9999;
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: var(--r-md); box-shadow: 0 6px 20px rgba(0,0,0,.12);
+  max-height: 220px; overflow-y: auto;
+}
+.labo-suggestion-item {
+  padding: 9px 12px; cursor: pointer;
+  border-bottom: 1px solid var(--surface2);
+  transition: background .1s;
+}
+.labo-suggestion-item:last-child { border-bottom: none; }
+.labo-suggestion-item:hover { background: var(--surface2); }
+.suggestion-row-top { display: flex; align-items: center; gap: 6px; }
+.suggestion-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+.suggestion-gamme { font-size: 11.5px; color: var(--ink2); margin-top: 2px; }
+.suggestion-meta { display: flex; gap: 10px; margin-top: 3px; font-size: 11px; color: var(--ink3); }
+.suggestion-dates { color: var(--ink4); }
+.sug-badge { font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px; }
+.sug-badge.bri { background: #d1fae5; color: #065f46; }
+.sug-badge.av  { background: #dbeafe; color: #1e40af; }
+.sug-badge.sol { background: #fef3c7; color: #92400e; }
+
 .form-group { margin-bottom: 16px; }
 .form-group label {
   display: block; font-size: 11px; font-weight: 700;
@@ -875,10 +930,27 @@ header {
 }
 .products-table th.col-cip    { width: 130px; }
 .products-table th.col-offre  { width: 140px; }
+.products-table th.col-depot  { width: 100px; }
 .products-table th.col-actions { width: 42px; }
 .products-table tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
 .products-table tbody tr:last-child { border-bottom: none; }
 .products-table tbody tr:hover { background: var(--surface); }
+.products-table tbody tr.row-depot { background: #f0fdf4; }
+.products-table td.depot-cell { padding: 6px 10px; }
+
+.btn-depot {
+  font-size: 11px; font-weight: 600; padding: 4px 9px;
+  border-radius: var(--r-md); border: 1px solid var(--border);
+  background: var(--surface); color: var(--ink3);
+  cursor: pointer; white-space: nowrap; transition: all .15s;
+}
+.btn-depot:hover { border-color: #16a34a; color: #16a34a; background: #f0fdf4; }
+.btn-depot.active {
+  background: #dcfce7; color: #15803d;
+  border-color: #86efac; font-weight: 700;
+}
+
+.badge.b-depot { background: #dcfce7; color: #15803d; }
 .products-table td { padding: 11px 18px; font-size: 13px; color: var(--ink); }
 .products-table td.cip-cell {
   font-family: 'JetBrains Mono', monospace; font-size: 12px;
