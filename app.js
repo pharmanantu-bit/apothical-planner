@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
   })
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeModal(); closeCreateModal(); closePlanModal(); closeCommanderModal() }
+    if (e.key === 'Escape') { closeModal(); closeCreateModal(); closePlanModal(); closeCommanderModal(); closeDepotModal() }
   })
 
   // Zoom molette souris sur le plan
