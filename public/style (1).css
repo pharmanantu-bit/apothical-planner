@@ -420,7 +420,6 @@ header {
 }
 .card-delete:hover { background: var(--red-l); color: var(--red); border-color: #fca5a5; }
 
-
 /* ── Contenu carte compact ── */
 .labo-card-name {
   font-size: 12.5px; font-weight: 700;
@@ -651,27 +650,7 @@ header {
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 /* ─── MODAL COMMANDER ──────────────────────────────────────────────────────── */
-.commander-panel {
-  width: min(1122px, 96vw);
-  height: min(794px, 92vh);
-  max-width: none;
-  max-height: none;
-  transition: width .25s cubic-bezier(.16,1,.3,1), height .25s cubic-bezier(.16,1,.3,1);
-}
-.commander-panel.maximized {
-  width: 99vw;
-  height: 98vh;
-  border-radius: 8px;
-}
-
-/* Bouton agrandir/réduire */
-.btn-expand {
-  background: none; border: 1px solid var(--border);
-  border-radius: var(--r-md); padding: 5px 9px;
-  font-size: 14px; line-height: 1; cursor: pointer;
-  color: var(--ink3); transition: all .15s;
-}
-.btn-expand:hover { background: var(--surface2); color: var(--ink); }
+.commander-panel { width: 780px; max-height: 85vh; }
 
 .cmd-empty {
   padding: 48px; text-align: center;
@@ -680,7 +659,6 @@ header {
 
 .cmd-section { border-bottom: 1px solid var(--border); }
 .cmd-section:last-child { border-bottom: none; }
-.cmd-section-commanded { background: #fefce8; border-left: 3px solid #fbbf24; }
 
 .cmd-section-title {
   padding: 12px 20px 10px;
@@ -691,77 +669,41 @@ header {
   display: flex; align-items: center; gap: 8px;
   position: sticky; top: 0; z-index: 1;
   border-bottom: 1px solid var(--border);
-  cursor: pointer; user-select: none;
 }
-.cmd-section-title:hover { background: var(--surface2); }
 
-/* Chevron collapse */
-.cmd-section-title::before {
-  content: '▾';
-  font-size: 13px; color: var(--ink4);
-  transition: transform .18s;
-  flex-shrink: 0;
-}
-.cmd-section.collapsed .cmd-section-title::before { transform: rotate(-90deg); }
-.cmd-section.collapsed .cmd-section-body { display: none; }
-.cmd-section.collapsed .cmd-header { display: none; }
-
-/* ── Ligne générique ── */
 .cmd-row {
   display: grid;
+  grid-template-columns: 28px 1fr 120px 120px 90px;
   gap: 0;
   border-bottom: 1px solid var(--border);
   transition: background .1s;
 }
 .cmd-row:last-child { border-bottom: none; }
 .cmd-row:hover { background: var(--surface); }
-.cmd-row:nth-child(even) { background: var(--surface2); }
-.cmd-row:nth-child(even):hover { background: var(--surface); }
 
 .cmd-row.cmd-header {
-  background: var(--ink) !important;
+  background: var(--surface2);
   font-size: 10px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: .09em;
-  color: #fff !important;
-  position: sticky; top: 42px; z-index: 1;
-}
-.cmd-row.cmd-header .cmd-cell { color: #fff; border-right-color: rgba(255,255,255,.15); }
-
-/* ── Tableau placements (Zone | Labo | Offre | Période | Statut) ── */
-.cmd-row.row-plan {
-  grid-template-columns: 72px 1fr 130px 150px 100px;
-}
-
-/* ── Tableau produits commandés (Désignation | Labo | CIP | Offre | ✕) ── */
-.cmd-row.row-commanded {
-  grid-template-columns: 1fr 160px 130px 130px 44px;
-}
-
-/* ── Tableau dépôt (Désignation | CIP | Offre) ── */
-.cmd-row.row-depot-item {
-  grid-template-columns: 1fr 130px 130px;
+  text-transform: uppercase; letter-spacing: .08em;
+  color: var(--ink4);
 }
 
 .cmd-cell {
-  padding: 9px 14px;
+  padding: 10px 14px;
   font-size: 12.5px; color: var(--ink);
   display: flex; align-items: center;
   border-right: 1px solid var(--border);
-  overflow: hidden;
 }
 .cmd-cell:last-child { border-right: none; }
 .cmd-cell.zone-cell {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px; font-weight: 700; color: var(--ink3);
-  justify-content: center; background: var(--surface2);
-  border-right: 2px solid var(--border);
+  font-size: 10.5px; color: var(--ink4); font-weight: 600;
+  justify-content: center; padding: 10px 8px;
 }
-.cmd-cell.labo-cell { font-weight: 600; flex-direction: column; align-items: flex-start; gap: 1px; }
-.cmd-cell.cip-cell  { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--blue-mid); }
+.cmd-cell.labo-cell { font-weight: 600; }
 .cmd-cell.offre-cell { color: var(--green); font-family: 'JetBrains Mono', monospace; font-size: 11.5px; }
 .cmd-cell.dates-cell { font-size: 11px; color: var(--ink3); font-family: 'JetBrains Mono', monospace; }
 .cmd-cell.status-cell { justify-content: center; }
-.cmd-cell.action-cell { justify-content: center; padding: 4px; }
 
 .cmd-status {
   display: inline-flex; align-items: center; gap: 4px;
@@ -1027,15 +969,13 @@ header {
 }
 .products-table th.col-cip    { width: 130px; }
 .products-table th.col-offre  { width: 140px; }
-.products-table th.col-depot     { width: 100px; }
-.products-table th.col-commander { width: 110px; }
-.products-table th.col-actions   { width: 42px; }
+.products-table th.col-depot  { width: 100px; }
+.products-table th.col-actions { width: 42px; }
 .products-table tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
 .products-table tbody tr:last-child { border-bottom: none; }
 .products-table tbody tr:hover { background: var(--surface); }
 .products-table tbody tr.row-depot { background: #f0fdf4; }
-.products-table td.depot-cell,
-.products-table td.commander-cell { padding: 6px 10px; }
+.products-table td.depot-cell { padding: 6px 10px; }
 
 .btn-depot {
   font-size: 11px; font-weight: 600; padding: 4px 9px;
@@ -1044,25 +984,12 @@ header {
   cursor: pointer; white-space: nowrap; transition: all .15s;
 }
 .btn-depot:hover { border-color: #16a34a; color: #16a34a; background: #f0fdf4; }
-.btn-commander {
-  font-size: 11px; font-weight: 600; padding: 4px 9px;
-  border-radius: var(--r-md); border: 1px solid var(--border);
-  background: var(--surface2); color: var(--ink3);
-  cursor: pointer; white-space: nowrap; transition: all .15s;
-}
-.btn-commander:hover { border-color: #0369a1; color: #0369a1; background: #f0f9ff; }
-.btn-commander.active {
-  background: #fef9c3; color: #92400e;
-  border-color: #fde68a; font-weight: 700;
-}
-
 .btn-depot.active {
   background: #dcfce7; color: #15803d;
   border-color: #86efac; font-weight: 700;
 }
 
 .badge.b-depot { background: #dcfce7; color: #15803d; }
-
 .products-table td { padding: 11px 18px; font-size: 13px; color: var(--ink); }
 .products-table td.cip-cell {
   font-family: 'JetBrains Mono', monospace; font-size: 12px;

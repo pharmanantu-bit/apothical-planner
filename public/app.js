@@ -416,8 +416,11 @@ function renderLaboList(list) {
 }
 
 function buildLaboCardHTML(l) {
-  const placed  = isPlaced(l.id)
-  const badges  = []
+  const placed     = isPlaced(l.id)
+  const badges     = []
+  const products   = l.products || []
+  const depotCount = products.filter(p => p.depot).length
+  const commanded  = !!l.commanded
 
   if (l.isApothical) badges.push(`<span class="badge b-av">A&amp;V</span>`)
   if (l.hasBri)      badges.push(`<span class="badge b-bri">BRI ${l.bri}€</span>`)
@@ -425,8 +428,6 @@ function buildLaboCardHTML(l) {
   if (l.isSolaire)   badges.push(`<span class="badge b-solaire">☀ Solaire</span>`)
   if (l.isBebe)      badges.push(`<span class="badge b-bebe">👶 Bébé</span>`)
   if (l._opLabel)    badges.push(`<span class="badge b-op">${l._opLabel}</span>`)
-  const depotCount = (l.products || []).filter(p => p.depot).length
-  if (depotCount)    badges.push(`<span class="badge b-depot">📦 ${depotCount} dépôt</span>`)
 
   return `
     <div
@@ -443,6 +444,20 @@ function buildLaboCardHTML(l) {
       <div class="labo-card-badges">${badges.join('')}</div>
     </div>
   `
+}
+
+function toggleCommander(laboId) {
+  const l = labos.find(x => x.id === laboId)
+  if (!l) return
+  l.commanded = !l.commanded
+  const badge = document.getElementById('badge-cmd-' + l.id)
+  if (badge) {
+    badge.classList.toggle('active', l.commanded)
+    badge.innerHTML = `🛒 ${l.commanded ? 'Commandé ✓' : 'Commander'}`
+    badge.title = l.commanded ? 'Annuler la commande' : 'Marquer comme commandé'
+  }
+  saveDataToStorage()
+  showToast(l.commanded ? '🛒  Marqué comme commandé' : '↩  Commande annulée')
 }
 
 function applyFilters() {
@@ -795,13 +810,45 @@ function openCommanderModal() {
   const body = document.getElementById('commander-body')
   const entries = Object.entries(placement)
 
-  if (!entries.length) {
-    body.innerHTML = `<div class="cmd-empty">Aucune opération placée pour le moment.</div>`
-    document.getElementById('commander-overlay').classList.add('open')
-    return
+  let html = ''
+
+  // Section produits commandés (p.commanded = true) — toujours en premier
+  const commandedGroups = []
+  labos.forEach(l => {
+    const cp = (l.products || []).filter(p => p.commanded)
+    if (cp.length) commandedGroups.push({ labo: l, products: cp })
+  })
+
+  if (commandedGroups.length) {
+    const total = commandedGroups.reduce((s, g) => s + g.products.length, 0)
+    html += `<div class="cmd-section cmd-section-commanded">
+      <div class="cmd-section-title">🛒 Produits commandés <span style="font-weight:400;color:var(--ink4)">${total} produit${total > 1 ? 's' : ''}</span></div>
+      <div class="cmd-row row-commanded cmd-header">
+        <div class="cmd-cell">Désignation produit</div>
+        <div class="cmd-cell">Laboratoire</div>
+        <div class="cmd-cell cip-cell">Code CIP</div>
+        <div class="cmd-cell offre-cell">Offre</div>
+        <div class="cmd-cell action-cell"></div>
+      </div>`
+    commandedGroups.forEach(({ labo: l, products: cp }) => {
+      cp.forEach(p => {
+        const globalIdx = (l.products || []).indexOf(p)
+        html += `
+      <div class="cmd-row row-commanded">
+        <div class="cmd-cell">${p.nom || '—'}</div>
+        <div class="cmd-cell labo-cell"><span>${l.labo}</span></div>
+        <div class="cmd-cell cip-cell">${p.cip || '—'}</div>
+        <div class="cmd-cell offre-cell">${p.offre || '—'}</div>
+        <div class="cmd-cell action-cell">
+          <button class="row-btn del" onclick="removeCommanded('${l.id}',${globalIdx})" title="Retirer">✕</button>
+        </div>
+      </div>`
+      })
+    })
+    html += `</div>`
   }
 
-  let html = ''
+  // Section opérations placées dans le plan
   SECTIONS_ORDER.forEach(({ key, label }) => {
     const rows = entries.filter(([z]) => z === key || z.startsWith(key))
                         .sort(sortZone)
@@ -809,7 +856,7 @@ function openCommanderModal() {
 
     html += `<div class="cmd-section">
       <div class="cmd-section-title">${label} <span style="font-weight:400;color:var(--ink4)">${rows.length} opération${rows.length > 1 ? 's' : ''}</span></div>
-      <div class="cmd-row cmd-header">
+      <div class="cmd-row row-plan cmd-header">
         <div class="cmd-cell zone-cell">Zone</div>
         <div class="cmd-cell">Laboratoire · Gamme</div>
         <div class="cmd-cell">Offre</div>
@@ -822,13 +869,11 @@ function openCommanderModal() {
       const dates = l.debut && l.fin ? `${l.debut} → ${l.fin}` : l.debut || '—'
       const placed = !!placement[zone]
       html += `
-      <div class="cmd-row">
+      <div class="cmd-row row-plan">
         <div class="cmd-cell zone-cell">${zone}</div>
         <div class="cmd-cell labo-cell">
-          <div>
-            <div>${l.labo}</div>
-            <div style="font-size:11px;color:var(--ink3);font-weight:400">${l.gamme || ''}</div>
-          </div>
+          <span>${l.labo}</span>
+          <span style="font-size:11px;color:var(--ink3);font-weight:400">${l.gamme || ''}</span>
         </div>
         <div class="cmd-cell offre-cell">${offre}</div>
         <div class="cmd-cell dates-cell">${dates}</div>
@@ -841,12 +886,20 @@ function openCommanderModal() {
     html += `</div>`
   })
 
-  body.innerHTML = html
+  body.innerHTML = html || `<div class="cmd-empty">Aucune opération placée et aucun produit commandé.</div>`
   document.getElementById('commander-overlay').classList.add('open')
 }
 
 function closeCommanderModal() {
   document.getElementById('commander-overlay').classList.remove('open')
+}
+
+function removeCommanded(laboId, idx) {
+  const l = labos.find(x => x.id === laboId)
+  if (!l || !l.products[idx]) return
+  l.products[idx].commanded = false
+  saveDataToStorage()
+  openCommanderModal()
 }
 
 // ─── MODAL DÉPÔT ──────────────────────────────────────────────────────────────
@@ -881,18 +934,18 @@ function openDepotModal() {
         <span style="font-weight:400;color:var(--ink4)">${l.gamme || ''}</span>
         ${zone !== '—' ? `<span class="cmd-status ok" style="margin-left:8px">✓ ${zone}</span>` : ''}
       </div>
-      <div class="cmd-row cmd-header">
-        <div class="cmd-cell" style="flex:2">Désignation produit</div>
-        <div class="cmd-cell" style="flex:1">Code CIP 13</div>
-        <div class="cmd-cell" style="flex:1">Offre</div>
+      <div class="cmd-row row-depot-item cmd-header">
+        <div class="cmd-cell">Désignation produit</div>
+        <div class="cmd-cell cip-cell">Code CIP 13</div>
+        <div class="cmd-cell offre-cell">Offre</div>
       </div>`
 
     products.forEach(p => {
       html += `
-      <div class="cmd-row">
-        <div class="cmd-cell" style="flex:2">${p.nom || '—'}</div>
-        <div class="cmd-cell" style="flex:1;font-family:monospace;color:var(--blue-mid)">${p.cip || '—'}</div>
-        <div class="cmd-cell" style="flex:1;color:var(--green)">${p.offre || '—'}</div>
+      <div class="cmd-row row-depot-item">
+        <div class="cmd-cell">${p.nom || '—'}</div>
+        <div class="cmd-cell cip-cell">${p.cip || '—'}</div>
+        <div class="cmd-cell offre-cell">${p.offre || '—'}</div>
       </div>`
     })
 
@@ -1469,6 +1522,11 @@ function renderProductsTable(l) {
           📦 ${p.depot ? 'En dépôt' : 'Dépôt'}
         </button>
       </td>
+      <td class="commander-cell">
+        <button class="btn-commander ${p.commanded ? 'active' : ''}" onclick="toggleProductCommander(${i})" title="${p.commanded ? 'Annuler la commande' : 'Marquer comme commandé'}">
+          🛒 ${p.commanded ? 'Commandé' : 'Commander'}
+        </button>
+      </td>
       <td class="row-actions">
         <button class="row-btn del" onclick="deleteProductRow(${i})" title="Supprimer">✕</button>
       </td>
@@ -1493,6 +1551,20 @@ function toggleDepot(idx) {
   }
   saveDataToStorage()
   showToast(l.products[idx].depot ? '📦  Produit marqué au dépôt' : '↩  Retiré du dépôt')
+}
+
+function toggleProductCommander(idx) {
+  const l = labos.find(x => x.id === currentDetailId)
+  if (!l || !l.products[idx]) return
+  l.products[idx].commanded = !l.products[idx].commanded
+  renderProductsTable(l)
+  saveDataToStorage()
+  if (l.products[idx].commanded) {
+    closeModal()
+    openCommanderModal()
+  } else {
+    showToast('↩  Commande annulée')
+  }
 }
 
 function exportLaboCIP() {
