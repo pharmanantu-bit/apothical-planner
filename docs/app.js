@@ -80,7 +80,10 @@ document.addEventListener('DOMContentLoaded', () => {
   })
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeModal(); closeCreateModal(); closePlanModal(); closeCommanderModal(); closeDepotModal() }
+    if (e.key === 'Escape') {
+      [closeModal, closeCreateModal, closePlanModal, closeCommanderModal, closeDepotModal]
+        .forEach(fn => { try { fn() } catch(_) {} })
+    }
   })
 
   // Zoom molette souris sur le plan
@@ -822,14 +825,15 @@ function openCommanderModal() {
   if (commandedGroups.length) {
     const total = commandedGroups.reduce((s, g) => s + g.products.length, 0)
     html += `<div class="cmd-section cmd-section-commanded">
-      <div class="cmd-section-title">🛒 Produits commandés <span style="font-weight:400;color:var(--ink4)">${total} produit${total > 1 ? 's' : ''}</span></div>
+      <div class="cmd-section-title" onclick="toggleCmdSection(this.parentElement)">🛒 Produits commandés <span style="font-weight:400;color:var(--ink4)">${total} produit${total > 1 ? 's' : ''}</span></div>
       <div class="cmd-row row-commanded cmd-header">
         <div class="cmd-cell">Désignation produit</div>
         <div class="cmd-cell">Laboratoire</div>
         <div class="cmd-cell cip-cell">Code CIP</div>
         <div class="cmd-cell offre-cell">Offre</div>
         <div class="cmd-cell action-cell"></div>
-      </div>`
+      </div>
+      <div class="cmd-section-body">`
     commandedGroups.forEach(({ labo: l, products: cp }) => {
       cp.forEach(p => {
         const globalIdx = (l.products || []).indexOf(p)
@@ -845,7 +849,7 @@ function openCommanderModal() {
       </div>`
       })
     })
-    html += `</div>`
+    html += `</div></div>`
   }
 
   // Section opérations placées dans le plan
@@ -855,14 +859,15 @@ function openCommanderModal() {
     if (!rows.length) return
 
     html += `<div class="cmd-section">
-      <div class="cmd-section-title">${label} <span style="font-weight:400;color:var(--ink4)">${rows.length} opération${rows.length > 1 ? 's' : ''}</span></div>
+      <div class="cmd-section-title" onclick="toggleCmdSection(this.parentElement)">${label} <span style="font-weight:400;color:var(--ink4)">${rows.length} opération${rows.length > 1 ? 's' : ''}</span></div>
       <div class="cmd-row row-plan cmd-header">
         <div class="cmd-cell zone-cell">Zone</div>
         <div class="cmd-cell">Laboratoire · Gamme</div>
         <div class="cmd-cell">Offre</div>
         <div class="cmd-cell">Période</div>
         <div class="cmd-cell">Statut</div>
-      </div>`
+      </div>
+      <div class="cmd-section-body">`
 
     rows.forEach(([zone, l]) => {
       const offre = l.hasBri ? `-${l.bri}€ BRI` : l.isApothical ? 'A&V' : l.conditions || '—'
@@ -883,7 +888,7 @@ function openCommanderModal() {
       </div>`
     })
 
-    html += `</div>`
+    html += `</div></div>`
   })
 
   body.innerHTML = html || `<div class="cmd-empty">Aucune opération placée et aucun produit commandé.</div>`
@@ -892,6 +897,10 @@ function openCommanderModal() {
 
 function closeCommanderModal() {
   document.getElementById('commander-overlay').classList.remove('open')
+}
+
+function toggleCmdSection(section) {
+  section.classList.toggle('collapsed')
 }
 
 function removeCommanded(laboId, idx) {
@@ -929,7 +938,7 @@ function openDepotModal() {
     const zone = Object.entries(placement).find(([, pl]) => pl.id === l.id)?.[0] || '—'
     html += `
     <div class="cmd-section">
-      <div class="cmd-section-title">
+      <div class="cmd-section-title" onclick="toggleCmdSection(this.parentElement)">
         ${l.labo}
         <span style="font-weight:400;color:var(--ink4)">${l.gamme || ''}</span>
         ${zone !== '—' ? `<span class="cmd-status ok" style="margin-left:8px">✓ ${zone}</span>` : ''}
@@ -938,7 +947,8 @@ function openDepotModal() {
         <div class="cmd-cell">Désignation produit</div>
         <div class="cmd-cell cip-cell">Code CIP 13</div>
         <div class="cmd-cell offre-cell">Offre</div>
-      </div>`
+      </div>
+      <div class="cmd-section-body">`
 
     products.forEach(p => {
       html += `
@@ -949,7 +959,7 @@ function openDepotModal() {
       </div>`
     })
 
-    html += `</div>`
+    html += `</div></div>`
   })
 
   body.innerHTML = html
