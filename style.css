@@ -943,6 +943,13 @@ header {
 .op-products-table tbody tr:nth-child(even) { background: var(--surface); }
 .op-products-table tbody td { padding: 6px 10px; color: var(--ink2); }
 .op-products-table td.mono { font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+.cip-td { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.btn-copy-cip {
+  background: none; border: 1px solid var(--border); border-radius: 4px;
+  padding: 1px 5px; font-size: 11px; cursor: pointer; color: var(--ink4);
+  line-height: 1.4; transition: all .12s; flex-shrink: 0;
+}
+.btn-copy-cip:hover { background: var(--surface2); color: var(--ink); border-color: var(--ink3); }
 
 /* Autocomplete labo */
 .labo-suggestions {

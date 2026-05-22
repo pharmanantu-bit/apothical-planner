@@ -1308,7 +1308,10 @@ function renderOpProductsTable(labo) {
     <tr>
       <td>${labo.gamme || '—'}</td>
       <td>${p.nom  || '—'}</td>
-      <td class="mono">${p.cip  || '—'}</td>
+      <td class="mono cip-td">
+        ${p.cip || '—'}
+        ${p.cip ? `<button class="btn-copy-cip" onclick="navigator.clipboard.writeText('${p.cip}').then(()=>showToast('⎘ CIP copié'))" title="Copier le CIP">⎘</button>` : ''}
+      </td>
       <td>${p.offre || '—'}</td>
     </tr>`).join('')
   section.style.display = 'block'
