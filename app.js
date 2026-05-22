@@ -186,8 +186,25 @@ function loadFile(file) {
   reader.onload = (e) => {
     try {
       const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' })
-      const ws = wb.Sheets[wb.SheetNames[0]]
-      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+
+      // Lire toutes les feuilles et les concaténer (sauf feuilles vides)
+      let rows = []
+      let headersRow = null
+      wb.SheetNames.forEach((sheetName, si) => {
+        const ws = wb.Sheets[sheetName]
+        const sheetRows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+        if (!sheetRows.length) return
+        if (si === 0) {
+          headersRow = sheetRows[0]
+          rows = sheetRows
+        } else {
+          // Feuilles suivantes : ignorer leur 1ère ligne si c'est un entête identique
+          const firstRow = sheetRows[0]
+          const isHeader = firstRow.some(c => String(c).toUpperCase().includes('LABORATOIRE'))
+          rows = rows.concat(isHeader ? sheetRows.slice(1) : sheetRows)
+        }
+      })
+      if (!headersRow) throw new Error('Fichier vide')
 
       // Ligne 0 = entêtes — détection dynamique des colonnes
       const headers = (rows[0] || []).map(h => String(h).toUpperCase().trim())
@@ -195,31 +212,44 @@ function loadFile(file) {
       photoColIdx   = cols.photo
 
       // Parsing avec gestion des lignes de continuation (nom vide = produit supplémentaire)
-      const map   = {}   // key → labo
-      const order = []   // clés dans l'ordre d'apparition
-      let lastKey = ''
+      const map     = {}   // key → labo
+      const order   = []   // clés dans l'ordre d'apparition
+      let lastKey   = ''
+      let skipped   = 0
+      let processed = 0
 
-      rows.slice(1).forEach(r => {
+      rows.slice(1).forEach((r, rowIdx) => {
+        // Ligne entièrement vide → ignorer
+        const rowStr = r.join('').trim()
+        if (!rowStr) { skipped++; return }
+
         let nom = String(r[cols.nom] || '').trim()
 
-        // Ignorer entêtes répétés et lignes entièrement vides
-        if (!nom || nom === 'NAN' ||
-            nom.toUpperCase() === 'NOM DU LABORATOIRE' ||
-            nom.toUpperCase() === 'LABORATOIRE') {
-          // Ligne de continuation si on a un contexte
-          if (!nom && lastKey && map[lastKey]) {
+        // Ignorer entêtes répétés
+        const nomUp = nom.toUpperCase()
+        if (nomUp === 'NOM DU LABORATOIRE' || nomUp === 'LABORATOIRE' || nomUp === 'NOM LAB') {
+          skipped++; return
+        }
+        if (nom === 'NAN') nom = ''
+
+        // Ligne de continuation : nom vide mais on a un produit ou CIP
+        if (!nom) {
+          const hasProd = String(r[cols.cip] || '').trim() || String(r[cols.prodNom] || '').trim()
+          if (hasProd && lastKey && map[lastKey]) {
             nom = map[lastKey].labo
           } else {
-            return
+            skipped++; return
           }
         }
 
         const debut    = String(r[cols.debut]    || '').trim()
         const fin      = String(r[cols.fin]      || '').trim()
         const typeZone = String(r[cols.typeZone]  || '').trim()
+        const gamme    = String(r[cols.gamme]     || '').trim()
+        const titre    = String(r[cols.titre]     || '').trim()
 
-        // Clé unique par opération : même labo + même période + même zone = même op
-        const key = nom + '|||' + debut + '|||' + fin + '|||' + typeZone
+        // Clé unique : labo + période + zone + gamme + titre pour ne pas fusionner des ops différentes
+        const key = [nom, debut, fin, typeZone, gamme || titre].join('|||')
 
         if (!map[key]) {
           map[key] = buildLabo(nom, r, cols, key)
@@ -227,10 +257,11 @@ function loadFile(file) {
           order.push(key)
         }
         lastKey = key
+        processed++
 
         // Collecter les produits de cette ligne
         const cip  = String(r[cols.cip]    || '').trim()
-        const prod = String(r[cols.prodNom] || '').trim() || String(r[cols.gamme] || '').trim()
+        const prod = String(r[cols.prodNom] || '').trim() || gamme
         if (cip || prod) {
           const dup = map[key].products.some(p => p.cip === cip && p.nom === prod)
           if (!dup) {
@@ -280,7 +311,14 @@ function loadFile(file) {
       document.getElementById('btn-export').disabled = false
       saveDataToStorage()
       saveExcelToStorage(e.target.result, file.name)
-      showToast(`✅  ${labos.length} opérations · ${totalProducts} produits chargés`)
+
+      const nbSheets = wb.SheetNames.length
+      const sheetsInfo = nbSheets > 1 ? ` · ${nbSheets} feuilles` : ''
+      const skippedInfo = skipped > 0 ? ` · ${skipped} lignes ignorées` : ''
+      showToast(`✅  ${labos.length} opérations · ${totalProducts} produits${sheetsInfo}${skippedInfo}`)
+      if (skipped > 5) {
+        setTimeout(() => showToast(`ℹ️  ${skipped} lignes vides/entêtes ignorées — vérifie si tout est présent`), 3000)
+      }
     } catch (err) {
       showToast('❌  Erreur lecture fichier')
       console.error(err)
