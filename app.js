@@ -1402,7 +1402,18 @@ function openCreateModalForDrop(zoneId, labo) {
   setTimeout(() => document.getElementById('cf-offre').focus(), 80)
 }
 
+function toggleExpandCreate() {
+  const panel = document.querySelector('.create-panel')
+  const btn   = document.getElementById('btn-expand-create')
+  const expanded = panel.classList.toggle('expanded')
+  btn.textContent = expanded ? '⤡' : '⤢'
+  btn.title       = expanded ? 'Réduire' : 'Agrandir'
+}
+
 function closeCreateModal() {
+  const panel = document.querySelector('.create-panel')
+  panel.classList.remove('expanded')
+  document.getElementById('btn-expand-create').textContent = '⤢'
   document.getElementById('create-overlay').classList.remove('open')
   document.getElementById('labo-suggestions').style.display = 'none'
 

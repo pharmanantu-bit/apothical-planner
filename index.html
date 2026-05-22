@@ -377,7 +377,10 @@
           <div class="modal-labo-name" id="create-modal-title">Nouvelle opération</div>
           <div class="modal-dates" id="create-zone-label"></div>
         </div>
-        <button class="modal-close" onclick="closeCreateModal()">✕</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn-expand" id="btn-expand-create" onclick="toggleExpandCreate()" title="Agrandir">⤢</button>
+          <button class="modal-close" onclick="closeCreateModal()">✕</button>
+        </div>
       </div>
 
       <div class="modal-body create-form-body">
