@@ -1403,16 +1403,48 @@ function openCreateModalForDrop(zoneId, labo) {
 }
 
 function toggleExpandCreate() {
-  const panel = document.querySelector('.create-panel')
-  const btn   = document.getElementById('btn-expand-create')
+  const panel    = document.querySelector('.create-panel')
+  const btn      = document.getElementById('btn-expand-create')
+  const inner    = document.querySelector('.create-form-inner')
+  const fields   = document.querySelector('.form-fields')
+  const prodSec  = document.getElementById('op-products-section')
+  const tableWrap = document.querySelector('.op-products-table-wrap')
   const expanded = panel.classList.toggle('expanded')
-  btn.textContent = expanded ? '⤡' : '⤢'
-  btn.title       = expanded ? 'Réduire' : 'Agrandir'
+
+  if (expanded) {
+    panel.style.width    = 'min(1100px, 96vw)'
+    panel.style.maxHeight = '90vh'
+    inner.style.cssText  = 'display:flex;flex-direction:row;gap:20px;align-items:flex-start;'
+    fields.style.cssText = 'flex:0 0 320px;min-width:0;'
+    if (prodSec) {
+      prodSec.style.cssText   = 'flex:1;min-width:0;display:block;margin-top:0;'
+      if (tableWrap) tableWrap.style.maxHeight = 'calc(90vh - 180px)'
+    }
+    btn.textContent = '⤡'
+    btn.title       = 'Réduire'
+  } else {
+    panel.style.width    = '640px'
+    panel.style.maxHeight = ''
+    inner.style.cssText  = ''
+    fields.style.cssText = ''
+    if (prodSec && prodSec.children.length > 1) {
+      prodSec.style.cssText = 'display:block;'
+      if (tableWrap) tableWrap.style.maxHeight = '200px'
+    }
+    btn.textContent = '⤢'
+    btn.title       = 'Agrandir'
+  }
 }
 
 function closeCreateModal() {
   const panel = document.querySelector('.create-panel')
   panel.classList.remove('expanded')
+  panel.style.width = ''
+  panel.style.maxHeight = ''
+  const inner  = document.querySelector('.create-form-inner')
+  const fields = document.querySelector('.form-fields')
+  if (inner)  inner.style.cssText  = ''
+  if (fields) fields.style.cssText = ''
   document.getElementById('btn-expand-create').textContent = '⤢'
   document.getElementById('create-overlay').classList.remove('open')
   document.getElementById('labo-suggestions').style.display = 'none'
