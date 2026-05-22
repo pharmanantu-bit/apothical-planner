@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Apothical — Plan Trade</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="xlsx.min.js"></script>
+</head>
+<body>
+
+  <!-- ═══ HEADER ═══ -->
+  <header>
+    <div class="header-left">
+      <div class="logo">
+        <span class="logo-mark">A</span>
+        <div>
+          <div class="logo-name">Apothical</div>
+          <div class="logo-sub">Nanterre Université</div>
+        </div>
+      </div>
+      <select class="month-select" id="month-select" onchange="onMonthChange()">
+        <option value="">— Sélectionner un mois —</option>
+        <optgroup label="2025">
+          <option value="Janvier 2025">Janvier 2025</option>
+          <option value="Février 2025">Février 2025</option>
+          <option value="Mars 2025">Mars 2025</option>
+          <option value="Avril 2025">Avril 2025</option>
+          <option value="Mai 2025">Mai 2025</option>
+          <option value="Juin 2025">Juin 2025</option>
+          <option value="Juillet 2025">Juillet 2025</option>
+          <option value="Août 2025">Août 2025</option>
+          <option value="Septembre 2025">Septembre 2025</option>
+          <option value="Octobre 2025">Octobre 2025</option>
+          <option value="Novembre 2025">Novembre 2025</option>
+          <option value="Décembre 2025">Décembre 2025</option>
+        </optgroup>
+        <optgroup label="2026">
+          <option value="Janvier 2026">Janvier 2026</option>
+          <option value="Février 2026">Février 2026</option>
+          <option value="Mars 2026">Mars 2026</option>
+          <option value="Avril 2026">Avril 2026</option>
+          <option value="Mai 2026">Mai 2026</option>
+          <option value="Juin 2026">Juin 2026</option>
+          <option value="Juillet 2026">Juillet 2026</option>
+          <option value="Août 2026">Août 2026</option>
+          <option value="Septembre 2026">Septembre 2026</option>
+          <option value="Octobre 2026">Octobre 2026</option>
+          <option value="Novembre 2026">Novembre 2026</option>
+          <option value="Décembre 2026">Décembre 2026</option>
+        </optgroup>
+        <optgroup label="2027">
+          <option value="Janvier 2027">Janvier 2027</option>
+          <option value="Février 2027">Février 2027</option>
+          <option value="Mars 2027">Mars 2027</option>
+          <option value="Avril 2027">Avril 2027</option>
+          <option value="Mai 2027">Mai 2027</option>
+          <option value="Juin 2027">Juin 2027</option>
+          <option value="Juillet 2027">Juillet 2027</option>
+          <option value="Août 2027">Août 2027</option>
+          <option value="Septembre 2027">Septembre 2027</option>
+          <option value="Octobre 2027">Octobre 2027</option>
+          <option value="Novembre 2027">Novembre 2027</option>
+          <option value="Décembre 2027">Décembre 2027</option>
+        </optgroup>
+      </select>
+      <button class="btn-plan" id="btn-plan" onclick="planObjectURL ? openPlanModal() : document.getElementById('plan-file-input').click()">
+        📐 Plan pharmacie
+      </button>
+      <button class="btn-commander" onclick="openCommanderModal()">
+        🛒 Commander
+      </button>
+      <button class="btn-depot-modal" onclick="openDepotModal()">
+        📦 Dépôt
+      </button>
+      <input type="file" id="plan-file-input" accept=".pdf,image/*" style="display:none" onchange="loadPlanFile(this.files[0])">
+    </div>
+    <div class="header-right">
+      <span class="header-hint" id="header-hint">Importe operations.xlsx pour commencer</span>
+      <button class="btn-ghost" onclick="clearAll()">🗑 Réinitialiser</button>
+      <button class="btn-ghost" onclick="exportExcel()">⬇ Exporter Excel</button>
+      <button class="btn-ghost" onclick="exportBackup()" title="Télécharger une sauvegarde complète (données + plan pharmacie)">💾 Sauvegarder</button>
+      <button class="btn-ghost" onclick="document.getElementById('backup-file-input').click()" title="Restaurer depuis une sauvegarde">📂 Restaurer</button>
+      <input type="file" id="backup-file-input" accept=".json" style="display:none" onchange="importBackup(this.files[0])">
+    </div>
+  </header>
+
+  <!-- ═══ LAYOUT ═══ -->
+  <div class="layout">
+
+    <!-- ─── SIDEBAR ─── -->
+    <aside class="sidebar">
+
+      <div class="sidebar-head">
+        <div class="sidebar-title">Opérations laboratoires</div>
+
+        <div class="upload-zone" id="upload-zone"
+          onclick="document.getElementById('file-input').click()"
+          ondragover="event.preventDefault(); this.classList.add('over')"
+          ondragleave="this.classList.remove('over')"
+          ondrop="handleFileDrop(event)">
+          <input type="file" id="file-input" accept=".xlsx,.xls" onchange="loadFile(this.files[0])">
+          <div class="upload-icon" id="upload-icon">📂</div>
+          <p id="upload-text">Glisse <strong>operations.xlsx</strong><br>ou clique pour charger</p>
+          <button class="upload-delete-btn" id="upload-delete-btn"
+            onclick="event.stopPropagation(); deleteCurrentFile()"
+            title="Supprimer le fichier importé">✕ Supprimer</button>
+        </div>
+      </div>
+
+      <div class="filter-wrap">
+        <select id="type-filter" onchange="applyFilters()">
+          <option value="all">Tous les labos</option>
+          <option value="bri">🟢  BRI Rayon</option>
+          <option value="tg">🔵  TG uniquement</option>
+          <option value="av">🟡  Apothical &amp; Vous</option>
+          <option value="solaire">☀  Solaire</option>
+          <option value="bebe">👶  Bébé</option>
+          <option value="placed">✅  Placés</option>
+          <option value="unplaced">⬜  Non placés</option>
+          <option value="depot">📦  En dépôt</option>
+        </select>
+        <select id="sort-select" onchange="onSortChange(this.value)" title="Trier la liste">
+          <option value="az">🔤  A → Z</option>
+          <option value="import">📋  Ordre import</option>
+          <option value="bri">🟢  BRI en premier</option>
+          <option value="unplaced">⬜  Non placés d'abord</option>
+          <option value="placed">✅  Placés d'abord</option>
+        </select>
+      </div>
+
+      <div class="search-wrap">
+        <input type="text" id="search-input" placeholder="🔍  Rechercher un labo…"
+          oninput="applyFilters()" />
+      </div>
+
+      <div class="labo-count" id="labo-count"></div>
+
+      <div class="labo-list" id="labo-list">
+        <div class="empty-hint">
+          <p>Aucun fichier chargé</p>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- ─── PLAN ─── -->
+    <main class="plan-area" id="plan-area">
+
+      <!-- PODIUM -->
+      <section class="plan-section">
+        <div class="section-header">
+          <span class="section-icon">🏆</span>
+          <span class="section-title">Podium — Animation centrale</span>
+          <span class="section-rule">1 labo exclusif · LED 4 faces · Écran digital</span>
+        </div>
+        <div class="zones-row single">
+          <div class="drop-zone zone-podium" id="zone-PODIUM" data-zone="PODIUM" data-max="1"
+            ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
+            <div class="zone-label">PODIUM</div>
+            <div class="zone-content" id="content-PODIUM">
+              <div class="zone-placeholder">Glisse le labo du mois ici</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FONDS AVANCÉS -->
+      <section class="plan-section">
+        <div class="section-header">
+          <span class="section-icon">⭐</span>
+          <span class="section-title">Fonds avancés</span>
+          <span class="section-rule">Produits stars · Promo volume · Cosméto premium</span>
+        </div>
+        <div class="zones-row cols-3">
+          <div class="drop-zone zone-fa" id="zone-FA1" data-zone="FA1" data-max="1"
+            ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
+            <div class="zone-label">FA1 <small>Minceur / Volume</small></div>
+            <div class="zone-content" id="content-FA1"><div class="zone-placeholder">Glisse ici</div></div>
+          </div>
+          <div class="drop-zone zone-fa" id="zone-FA2" data-zone="FA2" data-max="1"
+            ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
+            <div class="zone-label">FA2 <small>Cosméto corps</small></div>
+            <div class="zone-content" id="content-FA2"><div class="zone-placeholder">Glisse ici</div></div>
+          </div>
+          <div class="drop-zone zone-fa" id="zone-FA3" data-zone="FA3" data-max="1"
+            ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
+            <div class="zone-label">FA3 <small>Fond avancé 3</small></div>
+            <div class="zone-content" id="content-FA3"><div class="zone-placeholder">Glisse ici</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TG ÉCRANS -->
+      <section class="plan-section">
+        <div class="section-header">
+          <span class="section-icon">📺</span>
+          <span class="section-title">Gondoles avec écran digital</span>
+          <span class="section-rule">Priorité aux opérations TG+BRI</span>
+        </div>
+        <div class="zones-row cols-4">
+          <div class="drop-zone zone-ecran" id="zone-TG9" data-zone="TG9" data-max="1"
+            ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
+            <div class="zone-label">TG9 <small>ÉCRAN</small></div>
+            <div class="zone-content" id="content-TG9"><div class="zone-placeholder">—</div></div>
+          </div>
+          <div class="drop-zone zone-ecran" id="zone-TG10" data-zone="TG10" data-max="1"
+            ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
+            <div class="zone-label">TG10 <small>ÉCRAN</small></div>
+            <div class="zone-content" id="content-TG10"><div class="zone-placeholder">—</div></div>
+          </div>
+          <div class="drop-zone zone-ecran" id="zone-TG11" data-zone="TG11" data-max="1"
+            ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
+            <div class="zone-label">TG11 <small>ÉCRAN</small></div>
+            <div class="zone-content" id="content-TG11"><div class="zone-placeholder">—</div></div>
+          </div>
+          <div class="drop-zone zone-ecran" id="zone-TG12" data-zone="TG12" data-max="1"
+            ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
+            <div class="zone-label">TG12 <small>ÉCRAN</small></div>
+            <div class="zone-content" id="content-TG12"><div class="zone-placeholder">—</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TG 1–8 -->
+      <section class="plan-section">
+        <div class="section-header">
+          <span class="section-icon">📦</span>
+          <span class="section-title">Gondoles TG 1 – 8</span>
+          <span class="section-rule">Para / Cosmétique centre</span>
+        </div>
+        <div class="zones-row cols-4" id="tg-1-8"></div>
+      </section>
+
+      <!-- TG 13–26 -->
+      <section class="plan-section">
+        <div class="section-header">
+          <span class="section-icon">📦</span>
+          <span class="section-title">Gondoles TG 13 – 26</span>
+          <span class="section-rule">Bébé · Dentaire · Diéta · Capillaire · OTC</span>
+        </div>
+        <div class="zones-row cols-4" id="tg-13-26"></div>
+      </section>
+
+      <!-- INTERCOMPTOIRS -->
+      <section class="plan-section">
+        <div class="section-header">
+          <span class="section-icon">🛒</span>
+          <span class="section-title">Intercomptoirs</span>
+          <span class="section-rule">Impulsion caisses · OTC saison</span>
+        </div>
+        <div class="zones-row cols-6">
+          <div class="drop-zone zone-ic" id="zone-IC1" data-zone="IC1" data-max="1"
+            ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
+            <div class="zone-label">IC1</div>
+            <div class="zone-content" id="content-IC1"><div class="zone-placeholder">—</div></div>
+          </div>
+          <div class="drop-zone zone-ic" id="zone-IC2" data-zone="IC2" data-max="1"
+            ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
+            <div class="zone-label">IC2</div>
+            <div class="zone-content" id="content-IC2"><div class="zone-placeholder">—</div></div>
+          </div>
+          <div class="drop-zone zone-ic" id="zone-IC3" data-zone="IC3" data-max="1"
+            ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
+            <div class="zone-label">IC3</div>
+            <div class="zone-content" id="content-IC3"><div class="zone-placeholder">—</div></div>
+          </div>
+          <div class="drop-zone zone-ic" id="zone-IC4" data-zone="IC4" data-max="1"
+            ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
+            <div class="zone-label">IC4</div>
+            <div class="zone-content" id="content-IC4"><div class="zone-placeholder">—</div></div>
+          </div>
+          <div class="drop-zone zone-ic" id="zone-IC5" data-zone="IC5" data-max="1"
+            ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
+            <div class="zone-label">IC5</div>
+            <div class="zone-content" id="content-IC5"><div class="zone-placeholder">—</div></div>
+          </div>
+          <div class="drop-zone zone-ic" id="zone-IC6" data-zone="IC6" data-max="1"
+            ondragover="onDragOver(event,this)" ondragleave="onDragLeave(this)" ondrop="onDrop(event,this)">
+            <div class="zone-label">IC6 <small>Caisse rapide</small></div>
+            <div class="zone-content" id="content-IC6"><div class="zone-placeholder">—</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- BRI RAYONS -->
+      <section class="plan-section">
+        <div class="section-header">
+          <span class="section-icon">🏷</span>
+          <span class="section-title">BRI Rayons</span>
+          <span class="section-rule">Bons de réduction immédiate · Placement rayon</span>
+        </div>
+        <div class="zones-row cols-4" id="bri-rayons"></div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ═══ BARRE BAS ═══ -->
+  <footer class="footer-bar">
+    <div class="footer-stats" id="footer-stats">Aucun fichier chargé</div>
+    <button class="btn-primary" id="btn-export" onclick="exportExcel()" disabled>
+      ⬇ &nbsp;Exporter Plan_trade.xlsx
+    </button>
+  </footer>
+
+  <!-- ═══ MODAL COMMANDER ═══ -->
+  <div id="commander-overlay" class="modal-overlay" onclick="closeCommanderModal()">
+    <div class="modal-panel commander-panel" onclick="event.stopPropagation()">
+
+      <div class="modal-header">
+        <div class="modal-header-info">
+          <div class="modal-labo-name">🛒 Récapitulatif de commande</div>
+          <div class="modal-dates" id="commander-month"></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn-primary" style="font-size:12px;padding:7px 16px" onclick="exportCommandeExcel()">⬇ Exporter</button>
+          <button class="modal-close" onclick="closeCommanderModal()">✕</button>
+        </div>
+      </div>
+
+      <div class="modal-body" id="commander-body">
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ MODAL PLAN PHARMACIE ═══ -->
+  <div id="plan-modal" class="plan-modal-overlay" onclick="closePlanModal()">
+    <div class="plan-modal-panel" onclick="event.stopPropagation()">
+
+      <div class="plan-modal-header">
+        <div class="plan-modal-title">
+          <span>📐</span>
+          <span id="plan-file-name">Plan pharmacie</span>
+        </div>
+        <div class="plan-modal-actions">
+          <div class="zoom-controls">
+            <button class="btn-plan-action zoom-btn" onclick="zoomPlan(-0.15)" title="Zoom arrière">−</button>
+            <span class="zoom-label" id="zoom-label">100%</span>
+            <button class="btn-plan-action zoom-btn" onclick="zoomPlan(+0.15)" title="Zoom avant">+</button>
+            <button class="btn-plan-action" onclick="resetZoom()" title="Réinitialiser le zoom">⊙</button>
+          </div>
+          <div class="plan-sep"></div>
+          <button class="btn-plan-action" onclick="rotatePlan()" title="Rotation 90°">⟳ Rotation</button>
+          <button class="btn-plan-action" id="btn-save-rotation" onclick="savePlanRotation()" title="Sauvegarder la rotation actuelle">💾 Sauvegarder</button>
+          <button class="btn-plan-action" onclick="document.getElementById('plan-file-input').click()" title="Changer de fichier">↻ Changer</button>
+          <button class="modal-close" onclick="closePlanModal()">✕</button>
+        </div>
+      </div>
+
+      <div class="plan-modal-body" id="plan-modal-body">
+        <div class="plan-empty" id="plan-empty">
+          <div class="plan-empty-icon">📐</div>
+          <p>Importe le plan de ta pharmacie</p>
+          <p class="plan-empty-sub">PDF ou image (PNG, JPG)</p>
+          <button class="btn-primary" onclick="document.getElementById('plan-file-input').click()">
+            Choisir un fichier
+          </button>
+        </div>
+        <div id="plan-viewer">
+          <iframe id="plan-iframe" style="display:none" title="Plan pharmacie"></iframe>
+          <img id="plan-img" style="display:none" alt="Plan pharmacie" />
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ MODAL CRÉER OPÉRATION ═══ -->
+  <div id="create-overlay" class="modal-overlay" onclick="closeCreateModal()">
+    <div class="modal-panel create-panel" onclick="event.stopPropagation()">
+
+      <div class="modal-header">
+        <div class="modal-header-info">
+          <div class="modal-labo-name" id="create-modal-title">Nouvelle opération</div>
+          <div class="modal-dates" id="create-zone-label"></div>
+        </div>
+        <button class="modal-close" onclick="closeCreateModal()">✕</button>
+      </div>
+
+      <div class="modal-body create-form-body">
+        <form id="create-form" onsubmit="submitCreateOp(event)">
+
+          <div class="form-group" style="position:relative">
+            <label>Nom du laboratoire <span class="req">*</span></label>
+            <input type="text" id="cf-labo" required placeholder="ex : URGO, PIERRE FABRE…" autocomplete="off" oninput="laboAutocomplete(this.value)" />
+            <div id="labo-suggestions" class="labo-suggestions" style="display:none"></div>
+          </div>
+
+          <div class="form-group">
+            <label>Gamme / Produit</label>
+            <input type="text" id="cf-gamme" placeholder="ex : Gamme Cicatrisation, Topicrem…" />
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Type d'opération</label>
+              <select id="cf-type" onchange="toggleBriField()">
+                <option value="tg">TG</option>
+                <option value="bri">BRI Rayon</option>
+                <option value="av">Apothical &amp; Vous</option>
+              </select>
+            </div>
+            <div class="form-group" id="cf-bri-wrap" style="display:none">
+              <label>Montant BRI (€)</label>
+              <input type="number" id="cf-bri" placeholder="ex : 2" min="0" step="0.5" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Offre prévue</label>
+            <input type="text" id="cf-offre" placeholder="ex : -2€, Remise 15%, Lot 2+1…" />
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Date début</label>
+              <input type="text" id="cf-debut" placeholder="01/06/2026" />
+            </div>
+            <div class="form-group">
+              <label>Date fin</label>
+              <input type="text" id="cf-fin" placeholder="30/06/2026" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Notes internes</label>
+            <textarea id="cf-notes" rows="2" placeholder="Instructions de montage, remarques…"></textarea>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" class="btn-cancel" onclick="closeCreateModal()">Annuler</button>
+            <button type="submit" class="btn-primary" id="btn-submit-create">Créer &amp; Placer</button>
+          </div>
+
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ MODAL PRODUITS ═══ -->
+  <div id="modal-overlay" class="modal-overlay" onclick="closeModal()">
+    <div class="modal-panel" onclick="event.stopPropagation()">
+
+      <div class="modal-header">
+        <div class="modal-header-info">
+          <div class="modal-labo-name" id="modal-labo-name"></div>
+          <div class="modal-dates" id="modal-dates"></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn-primary" style="font-size:12px;padding:7px 16px" onclick="exportLaboCIP()" title="Exporter les produits et CIP pour vérification stock">⬇ Extraction CIP</button>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+      </div>
+
+      <div class="modal-meta">
+        <div class="modal-badges" id="modal-badges"></div>
+        <div class="modal-count" id="modal-count"></div>
+      </div>
+
+      <div class="modal-body">
+        <table class="products-table">
+          <thead>
+            <tr>
+              <th>Produit / Gamme</th>
+              <th class="col-cip">Code CIP</th>
+              <th class="col-offre">Offre prévue</th>
+              <th class="col-depot">📦 Dépôt</th>
+              <th class="col-commander">🛒 Commander</th>
+              <th class="col-actions"></th>
+            </tr>
+          </thead>
+          <tbody id="products-tbody"></tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ MODAL DÉPÔT ═══ -->
+  <div id="depot-overlay" class="modal-overlay" onclick="closeDepotModal()">
+    <div class="modal-panel commander-panel" onclick="event.stopPropagation()">
+
+      <div class="modal-header">
+        <div class="modal-header-info">
+          <div class="modal-labo-name">📦 Produits disponibles au dépôt</div>
+          <div class="modal-dates" id="depot-count-label"></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn-primary" style="font-size:12px;padding:7px 16px" onclick="exportDepotExcel()">⬇ Exporter</button>
+          <button class="modal-close" onclick="closeDepotModal()">✕</button>
+        </div>
+      </div>
+
+      <div class="modal-body" id="depot-body"></div>
+
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div id="toast"></div>
+
+  <script src="plan_data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
