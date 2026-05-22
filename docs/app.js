@@ -606,6 +606,53 @@ function clearZone(zoneId) {
   zone?.classList.remove('filled')
 }
 
+function autoPlaceBri() {
+  // Labs BRI non encore placés
+  const unplaced = labos.filter(l => l.hasBri && !isPlaced(l.id))
+  if (!unplaced.length) { showToast('✅  Tous les labs BRI sont déjà placés'); return }
+
+  // Slots BRI libres existants
+  const freeSlots = BRI_RAYONS.map(z => z.id).filter(id => !placement[id])
+
+  // Si pas assez de slots, en créer de nouveaux
+  let needed = unplaced.length - freeSlots.length
+  while (needed > 0) {
+    const n = BRI_RAYONS.length + 1
+    const newZone = { id: `BRIR${n}`, label: `BRI R${n}`, sub: '' }
+    BRI_RAYONS.push(newZone)
+    // Créer le DOM de la zone
+    const container = document.getElementById('bri-rayons')
+    const div = document.createElement('div')
+    div.className = 'drop-zone zone-bri'
+    div.id = `zone-${newZone.id}`
+    div.dataset.zone = newZone.id
+    div.dataset.max = '1'
+    div.setAttribute('ondragover', 'onDragOver(event,this)')
+    div.setAttribute('ondragleave', 'onDragLeave(this)')
+    div.setAttribute('ondrop', 'onDrop(event,this)')
+    div.innerHTML = `
+      <div class="zone-label">${newZone.label}</div>
+      <div class="zone-content" id="content-${newZone.id}">
+        <div class="zone-placeholder">—</div>
+      </div>`
+    container.appendChild(div)
+    freeSlots.push(newZone.id)
+    needed--
+  }
+
+  // Placer chaque lab BRI dans un slot libre
+  unplaced.forEach((labo, i) => {
+    const zoneId = freeSlots[i]
+    placement[zoneId] = labo
+    renderChip(zoneId, labo)
+    setCardPlaced(labo.id, true)
+  })
+
+  updateFooter()
+  saveDataToStorage()
+  showToast(`⚡ ${unplaced.length} lab${unplaced.length > 1 ? 's' : ''} BRI placé${unplaced.length > 1 ? 's' : ''} automatiquement`)
+}
+
 function removeFromZone(zoneId) {
   const labo = placement[zoneId]
   if (!labo) return
