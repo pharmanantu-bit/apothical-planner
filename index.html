@@ -385,7 +385,9 @@
 
       <div class="modal-body create-form-body">
         <form id="create-form" onsubmit="submitCreateOp(event)">
+          <div class="create-form-inner">
 
+          <div class="form-fields">
           <div class="form-group" style="position:relative">
             <label>Nom du laboratoire <span class="req">*</span></label>
             <input type="text" id="cf-labo" required placeholder="ex : URGO, PIERRE FABRE…" autocomplete="off" oninput="laboAutocomplete(this.value)" />
@@ -432,6 +434,7 @@
             <label>Notes internes</label>
             <textarea id="cf-notes" rows="2" placeholder="Instructions de montage, remarques…"></textarea>
           </div>
+          </div><!-- /.form-fields -->
 
           <div id="op-products-section" style="display:none">
             <div class="op-products-label">Références prévues</div>
@@ -449,6 +452,8 @@
               </table>
             </div>
           </div>
+
+          </div><!-- /.create-form-inner -->
 
           <div class="form-actions">
             <button type="button" class="btn-cancel" onclick="closeCreateModal()">Annuler</button>
