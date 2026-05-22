@@ -430,6 +430,23 @@
             <textarea id="cf-notes" rows="2" placeholder="Instructions de montage, remarques…"></textarea>
           </div>
 
+          <div id="op-products-section" style="display:none">
+            <div class="op-products-label">Références prévues</div>
+            <div class="op-products-table-wrap">
+              <table class="op-products-table" id="op-products-table">
+                <thead>
+                  <tr>
+                    <th>Gamme</th>
+                    <th>Désignation produit</th>
+                    <th>Code CIP</th>
+                    <th>Offre</th>
+                  </tr>
+                </thead>
+                <tbody id="op-products-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
           <div class="form-actions">
             <button type="button" class="btn-cancel" onclick="closeCreateModal()">Annuler</button>
             <button type="submit" class="btn-primary" id="btn-submit-create">Créer &amp; Placer</button>

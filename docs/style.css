@@ -889,8 +889,32 @@ header {
 .plan-empty .btn-primary { margin-top: 8px; }
 
 /* ─── FORMULAIRE CRÉATION ──────────────────────────────────────────────────── */
-.create-panel { width: 500px; }
+.create-panel { width: 640px; }
 .create-form-body { padding: 20px; }
+
+/* Tableau références prévues */
+.op-products-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--ink4);
+  margin: 16px 0 8px;
+}
+.op-products-table-wrap {
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  overflow: hidden; max-height: 200px; overflow-y: auto;
+}
+.op-products-table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+}
+.op-products-table thead th {
+  background: var(--ink); color: #fff;
+  padding: 7px 10px; text-align: left; font-weight: 600;
+  font-size: 11px; white-space: nowrap; position: sticky; top: 0;
+}
+.op-products-table tbody tr { border-bottom: 1px solid var(--border); }
+.op-products-table tbody tr:last-child { border-bottom: none; }
+.op-products-table tbody tr:nth-child(even) { background: var(--surface); }
+.op-products-table tbody td { padding: 6px 10px; color: var(--ink2); }
+.op-products-table td.mono { font-family: 'JetBrains Mono', monospace; font-size: 11px; }
 
 /* Autocomplete labo */
 .labo-suggestions {

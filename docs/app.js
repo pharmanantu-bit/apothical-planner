@@ -1298,6 +1298,22 @@ function closePlanModal() {
 
 // ─── CRÉATION MANUELLE D'OPÉRATION ───────────────────────────────────────────
 
+function renderOpProductsTable(labo) {
+  const section = document.getElementById('op-products-section')
+  const tbody   = document.getElementById('op-products-tbody')
+  const products = (labo?.products || []).filter(p => p.nom || p.cip)
+  if (!products.length) { section.style.display = 'none'; return }
+
+  tbody.innerHTML = products.map(p => `
+    <tr>
+      <td>${labo.gamme || '—'}</td>
+      <td>${p.nom  || '—'}</td>
+      <td class="mono">${p.cip  || '—'}</td>
+      <td>${p.offre || '—'}</td>
+    </tr>`).join('')
+  section.style.display = 'block'
+}
+
 function editZone(zoneId) {
   const labo = placement[zoneId]
   if (!labo) return
@@ -1331,6 +1347,7 @@ function editZone(zoneId) {
     document.getElementById('cf-bri-wrap').style.display = 'none'
   }
 
+  renderOpProductsTable(labo)
   document.getElementById('create-overlay').classList.add('open')
   setTimeout(() => document.getElementById('cf-gamme').focus(), 80)
 }
@@ -1345,6 +1362,7 @@ function openCreateModal(zoneId) {
   document.getElementById('cf-bri-wrap').style.display = 'none'
   document.getElementById('cf-notes').value = ''
   document.getElementById('btn-submit-create').textContent = 'Créer & Placer'
+  document.getElementById('op-products-section').style.display = 'none'
   document.getElementById('create-overlay').classList.add('open')
   setTimeout(() => document.getElementById('cf-labo').focus(), 80)
 }
@@ -1379,6 +1397,7 @@ function openCreateModalForDrop(zoneId, labo) {
   }
 
   document.getElementById('btn-submit-create').textContent = 'Confirmer & Placer'
+  renderOpProductsTable(labo)
   document.getElementById('create-overlay').classList.add('open')
   setTimeout(() => document.getElementById('cf-offre').focus(), 80)
 }
