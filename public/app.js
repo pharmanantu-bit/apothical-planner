@@ -1298,6 +1298,11 @@ function closePlanModal() {
 
 // ─── CRÉATION MANUELLE D'OPÉRATION ───────────────────────────────────────────
 
+function copyCip(btn) {
+  const cip = btn.dataset.cip
+  navigator.clipboard.writeText(cip).then(() => showToast('⎘ CIP copié'))
+}
+
 function renderOpProductsTable(labo) {
   const section = document.getElementById('op-products-section')
   const tbody   = document.getElementById('op-products-tbody')
@@ -1308,9 +1313,11 @@ function renderOpProductsTable(labo) {
     <tr>
       <td>${labo.gamme || '—'}</td>
       <td>${p.nom  || '—'}</td>
-      <td class="mono cip-td">
-        ${p.cip || '—'}
-        ${p.cip ? `<button class="btn-copy-cip" onclick="navigator.clipboard.writeText('${p.cip}').then(()=>showToast('⎘ CIP copié'))" title="Copier le CIP">⎘</button>` : ''}
+      <td class="mono">
+        <span class="cip-td">
+          <span>${p.cip || '—'}</span>
+          ${p.cip ? `<button class="btn-copy-cip" data-cip="${escHtml(p.cip)}" onclick="copyCip(this)" title="Copier le CIP">⎘</button>` : ''}
+        </span>
       </td>
       <td>${p.offre || '—'}</td>
     </tr>`).join('')

@@ -943,7 +943,7 @@ header {
 .op-products-table tbody tr:nth-child(even) { background: var(--surface); }
 .op-products-table tbody td { padding: 6px 10px; color: var(--ink2); }
 .op-products-table td.mono { font-family: 'JetBrains Mono', monospace; font-size: 11px; }
-.cip-td { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.cip-td { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .btn-copy-cip {
   background: none; border: 1px solid var(--border); border-radius: 4px;
   padding: 1px 5px; font-size: 11px; cursor: pointer; color: var(--ink4);
