@@ -1051,6 +1051,12 @@ header {
 }
 .modal-overlay.open .modal-panel { transform: none; }
 
+/* Modal PRODUITS (clic labo) — élargie pour la lisibilité du tableau */
+#modal-overlay .modal-panel {
+  width: min(940px, 96vw);
+  max-height: 86vh;
+}
+
 .modal-header {
   padding: 20px 20px 16px;
   display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;
@@ -1085,12 +1091,12 @@ header {
 
 .products-table { width: 100%; border-collapse: collapse; }
 .products-table thead th {
-  padding: 10px 18px;
-  font-size: 10.5px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: .09em;
-  color: var(--ink4); text-align: left;
-  background: var(--surface); border-bottom: 1px solid var(--border);
-  position: sticky; top: 0;
+  padding: 11px 18px;
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .07em;
+  color: var(--ink2); text-align: left;
+  background: var(--surface); border-bottom: 2px solid var(--border);
+  position: sticky; top: 0; z-index: 1;
 }
 .products-table th.col-cip    { width: 130px; }
 .products-table th.col-offre  { width: 140px; }
@@ -1098,9 +1104,11 @@ header {
 .products-table th.col-commander { width: 110px; }
 .products-table th.col-actions   { width: 42px; }
 .products-table tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+.products-table tbody tr:nth-child(even) { background: var(--surface); }
 .products-table tbody tr:last-child { border-bottom: none; }
-.products-table tbody tr:hover { background: var(--surface); }
+.products-table tbody tr:hover { background: var(--surface2); }
 .products-table tbody tr.row-depot { background: #f0fdf4; }
+.products-table tbody tr.row-depot:hover { background: #dcfce7; }
 .products-table td.depot-cell,
 .products-table td.commander-cell { padding: 6px 10px; }
 
@@ -1131,6 +1139,7 @@ header {
 .badge.b-depot { background: #dcfce7; color: #15803d; }
 
 .products-table td { padding: 11px 18px; font-size: 13px; color: var(--ink); }
+.products-table td:first-child { font-weight: 600; line-height: 1.35; }
 .products-table td.cip-cell {
   font-family: 'JetBrains Mono', monospace; font-size: 12px;
   color: var(--blue-mid); font-weight: 500; white-space: nowrap;
