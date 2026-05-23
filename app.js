@@ -69,6 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
   buildTgZones('bri-rayons', BRI_RAYONS, 'zone-bri')
   restoreDataFromStorage()
   restorePlanFromStorage()
+  restoreStockFromStorage()
 
   // Listener délégué : clic sur une zone vide → ouvrir le formulaire de création
   document.getElementById('plan-area').addEventListener('click', e => {
@@ -81,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
-      [closeModal, closeCreateModal, closePlanModal, closeCommanderModal, closeDepotModal]
+      [closeModal, closeCreateModal, closePlanModal, closeCommanderModal, closeDepotModal, closeReassortModal]
         .forEach(fn => { try { fn() } catch(_) {} })
     }
   })
@@ -1107,6 +1108,218 @@ function exportCommandeExcel() {
   showToast('✅ Commande exportée')
 }
 
+// ─── STOCK & RÉASSORT ─────────────────────────────────────────────────────────
+
+const STOCK_STORAGE_KEY = 'apothical_stock_v1'
+let stock     = {}     // { cipNormalisé: quantité }
+let stockMeta = null   // { name, date, count }
+
+// Normalise un CIP : ne garde que les chiffres
+function normalizeCip(v) {
+  return String(v == null ? '' : v).replace(/\D/g, '')
+}
+
+// Parse une quantité (gère "12", "12,0", " 3 ", etc.)
+function parseQty(v) {
+  if (v == null || v === '') return 0
+  const n = parseFloat(String(v).replace(/\s/g, '').replace(',', '.'))
+  return isNaN(n) ? 0 : n
+}
+
+// Détecte les colonnes CIP et quantité dans l'export de stock
+function detectStockColumns(headers) {
+  const find = (...pats) => {
+    for (const p of pats) { const i = headers.findIndex(h => h.includes(p)); if (i >= 0) return i }
+    return null
+  }
+  return {
+    cip: find('CIP13', 'CIP 13', 'CIP', 'EAN', 'CODE'),
+    qty: find('QTE PHYSIQUE', 'QTÉ PHYSIQUE', 'QUANTITE', 'QUANTITÉ', 'QTE', 'QTÉ', 'STOCK', 'DISPO', 'DÉTENU', 'DETENU', 'PHYSIQUE'),
+  }
+}
+
+// Quantité en stock pour un CIP donné — null si introuvable
+function getStockQty(cip) {
+  if (!stock) return null
+  const key = normalizeCip(cip)
+  if (!key) return null
+  if (Object.prototype.hasOwnProperty.call(stock, key)) return stock[key]
+  // fallback : ignorer les zéros de tête (CIP parfois préfixé par 0)
+  const stripped = key.replace(/^0+/, '')
+  for (const k in stock) { if (k.replace(/^0+/, '') === stripped) return stock[k] }
+  return null
+}
+
+function loadStockFile(file) {
+  if (!file) return
+  if (!file.name.match(/\.(xlsx|xls|csv)$/i)) { showToast('⚠️  Fichier .xlsx ou .csv requis'); return }
+
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' })
+      let rows = []
+      wb.SheetNames.forEach(name => {
+        rows = rows.concat(XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' }))
+      })
+      if (!rows.length) throw new Error('vide')
+
+      // Trouver la ligne d'entête (celle qui contient un mot CIP)
+      let headerIdx = rows.findIndex(r => r.some(c => /CIP|EAN|CODE/i.test(String(c))))
+      if (headerIdx < 0) headerIdx = 0
+      const headers = rows[headerIdx].map(h => String(h).toUpperCase().trim())
+      const sc = detectStockColumns(headers)
+      if (sc.cip == null) throw new Error('cip')
+
+      const map = {}
+      let lines = 0
+      rows.slice(headerIdx + 1).forEach(r => {
+        const cip = normalizeCip(r[sc.cip])
+        if (!cip || cip.length < 6) return   // ignore lignes sans vrai CIP
+        const qty = sc.qty != null ? parseQty(r[sc.qty]) : 0
+        map[cip] = (map[cip] || 0) + qty
+        lines++
+      })
+      if (!lines) throw new Error('cip')
+
+      stock = map
+      stockMeta = { name: file.name, date: new Date().toISOString(), count: Object.keys(map).length }
+      saveStockToStorage()
+      updateStockUI()
+      showToast(`✅  Stock chargé : ${stockMeta.count} références`)
+    } catch (err) {
+      if (err.message === 'cip') showToast('❌  Colonne CIP introuvable dans le fichier')
+      else showToast('❌  Erreur lecture du fichier stock')
+      console.error(err)
+    }
+  }
+  reader.readAsArrayBuffer(file)
+}
+
+function saveStockToStorage() {
+  try { localStorage.setItem(STOCK_STORAGE_KEY, JSON.stringify({ stock, meta: stockMeta })) } catch (e) {}
+}
+
+function restoreStockFromStorage() {
+  try {
+    const raw = localStorage.getItem(STOCK_STORAGE_KEY)
+    if (!raw) return
+    const o = JSON.parse(raw)
+    stock     = o.stock || {}
+    stockMeta = o.meta  || null
+    updateStockUI()
+  } catch (e) {}
+}
+
+function updateStockUI() {
+  const btn = document.getElementById('btn-stock')
+  if (!btn) return
+  if (stockMeta && stockMeta.count) {
+    btn.classList.add('has-stock')
+    btn.innerHTML = `📥 Stock · ${stockMeta.count}`
+    btn.title = `Stock chargé : ${stockMeta.count} références (${stockMeta.name}). Cliquez pour remplacer.`
+  } else {
+    btn.classList.remove('has-stock')
+    btn.innerHTML = '📥 Stock'
+    btn.title = "Importer l'export de stock de votre logiciel (CIP + quantité)"
+  }
+}
+
+// Croise les produits des opérations avec le stock → dépôt vs commander
+function computeReassort() {
+  const depot = [], commander = []
+  labos.forEach(l => {
+    const zone = Object.entries(placement).find(([, pl]) => pl.id === l.id)?.[0] || ''
+    ;(l.products || []).forEach(p => {
+      const qty  = getStockQty(p.cip)
+      const item = { labo: l.labo, gamme: l.gamme || '', nom: p.nom || '', cip: p.cip || '', offre: p.offre || '', qty, zone }
+      if (qty != null && qty >= 1) depot.push(item)
+      else commander.push(item)
+    })
+  })
+  return { depot, commander }
+}
+
+function renderReassortSection(title, statusClass, items) {
+  if (!items.length) {
+    return `<div class="cmd-section"><div class="cmd-section-title">${title} <span class="cmd-status ${statusClass}" style="margin-left:8px">0</span></div></div>`
+  }
+  let html = `
+    <div class="cmd-section">
+      <div class="cmd-section-title" onclick="toggleCmdSection(this.parentElement)">
+        ${title} <span class="cmd-status ${statusClass}" style="margin-left:8px">${items.length}</span>
+      </div>
+      <div class="cmd-row cmd-header row-reassort">
+        <div class="cmd-cell">Laboratoire</div>
+        <div class="cmd-cell">Désignation produit</div>
+        <div class="cmd-cell cip-cell">Code CIP</div>
+        <div class="cmd-cell offre-cell">Offre</div>
+        <div class="cmd-cell">Qté stock</div>
+      </div>
+      <div class="cmd-section-body">`
+  items.forEach(it => {
+    const qtyTxt = it.qty == null ? '—' : it.qty
+    html += `
+      <div class="cmd-row row-reassort">
+        <div class="cmd-cell labo-cell">${escHtml(it.labo)}</div>
+        <div class="cmd-cell">${escHtml(it.nom) || '—'}</div>
+        <div class="cmd-cell cip-cell">${it.cip || '—'}</div>
+        <div class="cmd-cell offre-cell">${escHtml(it.offre) || '—'}</div>
+        <div class="cmd-cell">${qtyTxt}</div>
+      </div>`
+  })
+  html += `</div></div>`
+  return html
+}
+
+function openReassortModal() {
+  const body  = document.getElementById('reassort-body')
+  const label = document.getElementById('reassort-count-label')
+  const open  = () => document.getElementById('reassort-overlay').classList.add('open')
+
+  if (!labos.length) {
+    label.textContent = ''
+    body.innerHTML = `<div class="cmd-empty">Aucune opération chargée.<br><small>Importez d'abord un fichier OPEAZ dans la sidebar.</small></div>`
+    return open()
+  }
+  if (!stockMeta) {
+    label.textContent = ''
+    body.innerHTML = `<div class="cmd-empty">Aucun stock chargé.<br><small>Cliquez sur 📥 Stock et importez l'export CIP + quantité de votre logiciel.</small></div>`
+    return open()
+  }
+
+  const { depot, commander } = computeReassort()
+  label.textContent = `📦 ${depot.length} au dépôt  ·  🛒 ${commander.length} à commander  ·  stock : ${stockMeta.count} réf.`
+  body.innerHTML =
+    renderReassortSection('📦 À aller chercher au dépôt', 'ok', depot) +
+    renderReassortSection('🛒 À commander', 'wait', commander)
+  open()
+}
+
+function closeReassortModal() {
+  document.getElementById('reassort-overlay').classList.remove('open')
+}
+
+function exportReassort() {
+  if (!labos.length)  { showToast('⚠️  Aucune opération chargée'); return }
+  if (!stockMeta)     { showToast('⚠️  Importez d\'abord votre stock (📥 Stock)'); return }
+
+  const { depot, commander } = computeReassort()
+  const wb = XLSX.utils.book_new()
+  const mkSheet = (items) => {
+    const rows = [['Laboratoire', 'Gamme', 'Désignation produit', 'Code CIP 13', 'Offre', 'Qté en stock', 'Zone placée']]
+    items.forEach(it => rows.push([it.labo, it.gamme, it.nom, it.cip, it.offre, it.qty == null ? 'non trouvé' : it.qty, it.zone]))
+    const ws = XLSX.utils.aoa_to_sheet(rows)
+    ws['!cols'] = [{ wch: 26 }, { wch: 20 }, { wch: 40 }, { wch: 16 }, { wch: 20 }, { wch: 12 }, { wch: 10 }]
+    return ws
+  }
+  XLSX.utils.book_append_sheet(wb, mkSheet(depot),     'Au dépôt')
+  XLSX.utils.book_append_sheet(wb, mkSheet(commander), 'À commander')
+  const date = new Date().toLocaleDateString('fr-FR').replace(/\//g, '-')
+  XLSX.writeFile(wb, `Reassort_${(currentMonth || 'plan').replace(/ /g, '_') || date}.xlsx`)
+  showToast(`✅  Réassort exporté : ${depot.length} dépôt · ${commander.length} commande`)
+}
+
 // ─── SÉLECTION DU MOIS ───────────────────────────────────────────────────────
 
 function onMonthChange() {
@@ -1841,8 +2054,9 @@ function exportBackup() {
   const data  = localStorage.getItem(DATA_STORAGE_KEY)
   const plan  = localStorage.getItem(PLAN_STORAGE_KEY)
   const excel = localStorage.getItem(EXCEL_STORAGE_KEY)
+  const stockData = localStorage.getItem(STOCK_STORAGE_KEY)
   if (!data && !plan) { showToast('⚠️  Aucune donnée à sauvegarder'); return }
-  const backup = JSON.stringify({ data, plan, excel, version: 2, date: new Date().toISOString() })
+  const backup = JSON.stringify({ data, plan, excel, stock: stockData, version: 3, date: new Date().toISOString() })
   const blob = new Blob([backup], { type: 'application/json' })
   const a = document.createElement('a')
   a.href = URL.createObjectURL(blob)
@@ -1862,6 +2076,7 @@ function importBackup(file) {
       if (backup.data)  localStorage.setItem(DATA_STORAGE_KEY,  backup.data)
       if (backup.plan)  localStorage.setItem(PLAN_STORAGE_KEY,  backup.plan)
       if (backup.excel) localStorage.setItem(EXCEL_STORAGE_KEY, backup.excel)
+      if (backup.stock) localStorage.setItem(STOCK_STORAGE_KEY, backup.stock)
       showToast('✅  Sauvegarde restaurée — rechargement…')
       setTimeout(() => location.reload(), 1400)
     } catch {
