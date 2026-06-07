@@ -851,10 +851,12 @@ function exportExcel() {
   })
   add(aoa(icRows), 'INTERCOMPTOIR', [14, 55, 16, 20, 10, 35])
 
-  // ── 4. FOND AVANCEE
+  // ── 4. FOND AVANCEE (tous avec écran digital)
+  const FA_RAYON = { FA1: 'Compléments alim.', FA2: 'Dermocosmétique', FA3: 'Comptoir' }
   const faRows = [['', 'LABORATOIRE', 'PRODUIT', 'CIP', 'OFFRE', 'TRADE', 'NOTES']]
   faZones.forEach(([zone, l]) => {
-    faRows.push([zone, l.labo, l.gamme || l.titre, l.ean || '', offreLabel(l), 'Trade', placementNotes[zone] || ''])
+    const label = `${zone} (ECRAN)${FA_RAYON[zone] ? ' — ' + FA_RAYON[zone] : ''}`
+    faRows.push([label, l.labo, l.gamme || l.titre, l.ean || '', offreLabel(l), 'Trade', placementNotes[zone] || ''])
   })
   add(aoa(faRows), 'FOND AVANCEE', [6, 28, 50, 16, 24, 10, 35])
 
