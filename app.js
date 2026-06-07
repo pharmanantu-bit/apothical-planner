@@ -1642,6 +1642,7 @@ function editZone(zoneId) {
 
   renderOpProductsTable(labo)
   document.getElementById('create-overlay').classList.add('open')
+  expandCreateIfProducts()
   setTimeout(() => document.getElementById('cf-gamme').focus(), 80)
 }
 
@@ -1692,6 +1693,7 @@ function openCreateModalForDrop(zoneId, labo) {
   document.getElementById('btn-submit-create').textContent = 'Confirmer & Placer'
   renderOpProductsTable(labo)
   document.getElementById('create-overlay').classList.add('open')
+  expandCreateIfProducts()
   setTimeout(() => document.getElementById('cf-offre').focus(), 80)
 }
 
@@ -1726,6 +1728,16 @@ function toggleExpandCreate() {
     }
     btn.textContent = '⤢'
     btn.title       = 'Agrandir'
+  }
+}
+
+// Ouvre systématiquement le module en mode élargi si une opération a des produits,
+// pour faire apparaître le tableau des références sans clic supplémentaire.
+function expandCreateIfProducts() {
+  const prodSec = document.getElementById('op-products-section')
+  const panel   = document.querySelector('.create-panel')
+  if (prodSec && prodSec.style.display !== 'none' && !panel.classList.contains('expanded')) {
+    toggleExpandCreate()
   }
 }
 
