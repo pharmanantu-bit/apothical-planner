@@ -692,6 +692,36 @@ function autoPlaceBri() {
   showToast(`⚡ ${unplaced.length} lab${unplaced.length > 1 ? 's' : ''} BRI placé${unplaced.length > 1 ? 's' : ''} automatiquement`)
 }
 
+// Remplit automatiquement un ensemble de zones (TG ou IC) avec les labos non placés.
+// On exclut les BRI : ils ont leur propre zone + bouton « Auto-placer BRI ».
+function autoPlaceZones(selector, label) {
+  // Slots libres dans l'ordre du DOM (capture aussi les TG construites dynamiquement)
+  const freeSlots = [...document.querySelectorAll(selector)]
+    .map(z => z.dataset.zone)
+    .filter(id => id && !placement[id])
+  if (!freeSlots.length) { showToast(`✅  Aucun emplacement ${label} libre`); return }
+
+  const unplaced = labos.filter(l => !l.hasBri && !isPlaced(l.id))
+  if (!unplaced.length) { showToast('✅  Tous les labos (hors BRI) sont déjà placés'); return }
+
+  const n = Math.min(freeSlots.length, unplaced.length)
+  for (let i = 0; i < n; i++) {
+    const zoneId = freeSlots[i]
+    const labo   = unplaced[i]
+    placement[zoneId] = labo
+    renderChip(zoneId, labo)
+    setCardPlaced(labo.id, true)
+  }
+
+  updateFooter()
+  saveDataToStorage()
+  const left = unplaced.length - n
+  showToast(`⚡ ${n} labo${n > 1 ? 's' : ''} placé${n > 1 ? 's' : ''} en ${label}${left > 0 ? ` · ${left} sans place` : ''}`)
+}
+
+function autoPlaceTg() { autoPlaceZones('.zone-tg, .zone-ecran', 'gondole') }
+function autoPlaceIc() { autoPlaceZones('.zone-ic', 'intercomptoir') }
+
 function removeFromZone(zoneId) {
   const labo = placement[zoneId]
   if (!labo) return
