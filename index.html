@@ -84,6 +84,8 @@
     </div>
     <div class="header-right">
       <span class="header-hint" id="header-hint">Importe operations.xlsx pour commencer</span>
+      <button class="btn-ghost" onclick="openCheckModal()" title="Vérifier les doublons et conflits du plan">🔎 Vérifier</button>
+      <button class="btn-ghost" onclick="printPlan()" title="Version imprimable / PDF du plan placé">🖨 Imprimer</button>
       <button class="btn-ghost" onclick="clearAll()">🗑 Réinitialiser</button>
       <button class="btn-ghost" onclick="exportExcel()">⬇ Exporter Excel</button>
       <button class="btn-ghost" onclick="exportBackup()" title="Télécharger une sauvegarde complète (données + plan pharmacie)">💾 Sauvegarder</button>
@@ -549,6 +551,23 @@
       </div>
 
       <div class="modal-body" id="reassort-body"></div>
+
+    </div>
+  </div>
+
+  <!-- ═══ MODAL VÉRIFICATION ═══ -->
+  <div id="check-overlay" class="modal-overlay" onclick="closeCheckModal()">
+    <div class="modal-panel commander-panel" onclick="event.stopPropagation()">
+
+      <div class="modal-header">
+        <div class="modal-header-info">
+          <div class="modal-labo-name">🔎 Vérification du plan</div>
+          <div class="modal-dates" id="check-count-label"></div>
+        </div>
+        <button class="modal-close" onclick="closeCheckModal()">✕</button>
+      </div>
+
+      <div class="modal-body" id="check-body"></div>
 
     </div>
   </div>

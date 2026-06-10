@@ -1232,3 +1232,25 @@ header {
   .zones-row.cols-4 { grid-template-columns: repeat(2, 1fr); }
   .zones-row.cols-3 { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ─── VÉRIFICATION DOUBLONS / CONFLITS ───────────────────────────────────── */
+.check-item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  border-left: 4px solid var(--border2);
+  background: var(--surface);
+}
+.check-item-head   { font-size: 13px; color: var(--ink); }
+.check-item-detail { font-size: 12px; color: var(--ink3); margin-top: 3px; }
+.check-item-zones  { font-size: 11px; color: var(--ink2); margin-top: 4px; font-weight: 600; }
+.check-item.sev-error { border-left-color: var(--red);   background: var(--red-l); }
+.check-item.sev-warn  { border-left-color: var(--amber); background: var(--amber-l); }
+.check-item.sev-info  { border-left-color: var(--blue);  background: var(--blue-ll); }
+
+/* Surbrillance des zones en conflit sur le plan */
+.zone-conflict {
+  outline: 3px solid var(--red) !important;
+  outline-offset: 1px;
+  box-shadow: 0 0 0 4px rgba(185, 28, 28, .18) !important;
+}

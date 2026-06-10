@@ -82,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
-      [closeModal, closeCreateModal, closePlanModal, closeCommanderModal, closeDepotModal, closeReassortModal]
+      [closeModal, closeCreateModal, closePlanModal, closeCommanderModal, closeDepotModal, closeReassortModal, closeCheckModal]
         .forEach(fn => { try { fn() } catch(_) {} })
     }
   })
@@ -2128,4 +2128,213 @@ function importBackup(file) {
     }
   }
   reader.readAsText(file)
+}
+
+// ─── SECTIONS DU PLAN (ordre d'affichage, partagé vérif + impression) ────────
+
+function getPlanSections() {
+  // BRI : inclut les rayons créés dynamiquement par autoPlaceBri
+  const briZones = Array.from(new Set([
+    ...BRI_RAYONS.map(z => z.id),
+    ...Object.keys(placement).filter(z => z.startsWith('BRIR')),
+  ]))
+  return [
+    { title: '🏆 Podium — Animation centrale', zones: ['PODIUM'] },
+    { title: '⭐ Fonds avancés',                zones: ['FA1', 'FA2', 'FA3'] },
+    { title: '📺 Gondoles écran digital',       zones: ['TG9', 'TG10', 'TG11', 'TG12'] },
+    { title: '📦 Gondoles TG 1 – 8',            zones: TG_1_8.map(z => z.id) },
+    { title: '📦 Gondoles TG 13 – 26',          zones: TG_13_26.map(z => z.id) },
+    { title: '🛒 Intercomptoirs',               zones: ['IC1', 'IC2', 'IC3', 'IC4', 'IC5', 'IC6'] },
+    { title: '🏷 BRI Rayons',                   zones: briZones },
+  ]
+}
+
+function planOffreLabel(l) {
+  return l.hasBri ? `-${l.bri}€ BRI` : l.isApothical ? 'Apothical & Vous' : (l.conditions || '')
+}
+
+// ─── VÉRIFICATION DOUBLONS / CONFLITS ────────────────────────────────────────
+
+const CHECK_SEVERITY = {
+  error: { icon: '⛔', cls: 'sev-error', rank: 0 },
+  warn:  { icon: '⚠️', cls: 'sev-warn',  rank: 1 },
+  info:  { icon: 'ℹ️', cls: 'sev-info',  rank: 2 },
+}
+
+function checkConflicts() {
+  const issues  = []
+  const entries = Object.entries(placement)
+
+  // 1. Doublons de laboratoire : même nom placé dans plusieurs zones
+  const byName = {}
+  entries.forEach(([zone, l]) => {
+    const name = (l.labo || '').trim().toUpperCase()
+    if (!name) return
+    ;(byName[name] = byName[name] || []).push(zone)
+  })
+  Object.values(byName).forEach(zones => {
+    if (zones.length > 1) {
+      const l = placement[zones[0]]
+      issues.push({
+        severity: 'error',
+        zones,
+        title: `Laboratoire en double : ${l.labo}`,
+        detail: `Placé dans ${zones.length} zones différentes. Vérifie si c'est voulu.`,
+      })
+    }
+  })
+
+  // 2. Rayon BRI occupé par une opération sans offre BRI
+  entries.forEach(([zone, l]) => {
+    if (zone.startsWith('BRIR') && !l.hasBri) {
+      issues.push({
+        severity: 'warn',
+        zones: [zone],
+        title: `${zone} : pas d'offre BRI`,
+        detail: `${l.labo} occupe un rayon BRI mais n'a pas de Bon de Réduction Immédiate.`,
+      })
+    }
+  })
+
+  // 3. Opération BRI placée hors d'un rayon BRI (informatif)
+  entries.forEach(([zone, l]) => {
+    if (l.hasBri && !zone.startsWith('BRIR')) {
+      issues.push({
+        severity: 'info',
+        zones: [zone],
+        title: `${l.labo} (BRI ${l.bri}€) hors rayon BRI`,
+        detail: `Placé en ${zone}. Si l'offre BRI doit être en rayon, utilise un emplacement BRI.`,
+      })
+    }
+  })
+
+  return issues
+}
+
+function highlightConflictZones(issues) {
+  clearConflictHighlight()
+  const zones = new Set()
+  issues.forEach(i => (i.zones || []).forEach(z => zones.add(z)))
+  zones.forEach(z => document.getElementById('zone-' + z)?.classList.add('zone-conflict'))
+}
+
+function clearConflictHighlight() {
+  document.querySelectorAll('.zone-conflict').forEach(e => e.classList.remove('zone-conflict'))
+}
+
+function openCheckModal() {
+  const body  = document.getElementById('check-body')
+  const label = document.getElementById('check-count-label')
+  const open  = () => document.getElementById('check-overlay').classList.add('open')
+
+  if (!Object.keys(placement).length) {
+    label.textContent = ''
+    body.innerHTML = `<div class="cmd-empty">Aucune opération placée à vérifier.</div>`
+    return open()
+  }
+
+  const issues = checkConflicts()
+  highlightConflictZones(issues)
+
+  if (!issues.length) {
+    label.textContent = ''
+    body.innerHTML = `<div class="cmd-empty">✅  Aucun doublon ni conflit détecté.<br><small>${Object.keys(placement).length} zones vérifiées.</small></div>`
+    return open()
+  }
+
+  issues.sort((a, b) => CHECK_SEVERITY[a.severity].rank - CHECK_SEVERITY[b.severity].rank)
+  const nErr  = issues.filter(i => i.severity === 'error').length
+  const nWarn = issues.filter(i => i.severity === 'warn').length
+  label.textContent =
+    `${issues.length} point${issues.length > 1 ? 's' : ''}` +
+    `${nErr ? ` · ${nErr} doublon${nErr > 1 ? 's' : ''}` : ''}` +
+    `${nWarn ? ` · ${nWarn} à vérifier` : ''}`
+
+  body.innerHTML = issues.map(it => {
+    const s = CHECK_SEVERITY[it.severity]
+    return `
+    <div class="check-item ${s.cls}">
+      <div class="check-item-head">${s.icon} <strong>${escHtml(it.title)}</strong></div>
+      <div class="check-item-detail">${escHtml(it.detail)}</div>
+      <div class="check-item-zones">Zone${it.zones.length > 1 ? 's' : ''} : ${it.zones.join(', ')}</div>
+    </div>`
+  }).join('')
+  open()
+}
+
+function closeCheckModal() {
+  document.getElementById('check-overlay').classList.remove('open')
+  clearConflictHighlight()
+}
+
+// ─── IMPRESSION / PDF DU PLAN ────────────────────────────────────────────────
+
+function printPlan() {
+  if (!Object.keys(placement).length) { showToast('⚠️  Aucune opération placée à imprimer'); return }
+
+  const month = document.getElementById('month-select').value || currentMonth || 'Plan'
+  const today = new Date().toLocaleDateString('fr-FR')
+
+  let bodyHtml = ''
+  getPlanSections().forEach(sec => {
+    const rows = sec.zones
+      .filter(z => placement[z])
+      .map(z => {
+        const l = placement[z]
+        return `<tr>
+          <td class="z">${escHtml(z)}</td>
+          <td class="labo">${escHtml(l.labo)}</td>
+          <td>${escHtml(l.gamme || l.titre || '')}</td>
+          <td>${escHtml(planOffreLabel(l))}</td>
+          <td class="note">${escHtml(placementNotes[z] || '')}</td>
+        </tr>`
+      }).join('')
+    if (!rows) return
+    bodyHtml += `<h2>${sec.title}</h2>
+      <table>
+        <thead><tr><th>Zone</th><th>Laboratoire</th><th>Gamme / Produit</th><th>Offre</th><th>Notes</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`
+  })
+
+  const placedCount = Object.keys(placement).length
+  const laboCount   = new Set(Object.values(placement).map(l => l.id)).size
+
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+  <title>Plan Trade — ${escHtml(month)}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: #14141c; margin: 24px; }
+    .head { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #14141c; padding-bottom: 10px; margin-bottom: 16px; }
+    .head h1 { margin: 0; font-size: 20px; }
+    .head .sub { font-size: 12px; color: #777; margin-top: 2px; }
+    .meta { font-size: 12px; color: #555; text-align: right; line-height: 1.5; }
+    h2 { font-size: 14px; margin: 18px 0 6px; background: #f3f1ec; padding: 6px 9px; border-radius: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 4px; }
+    th, td { border: 1px solid #ddd; padding: 5px 7px; text-align: left; vertical-align: top; }
+    th { background: #faf9f7; font-size: 10px; text-transform: uppercase; letter-spacing: .03em; color: #555; }
+    td.z { font-weight: 700; white-space: nowrap; width: 52px; }
+    td.labo { font-weight: 600; }
+    td.note { color: #666; font-style: italic; }
+    .foot { margin-top: 18px; font-size: 10px; color: #888; border-top: 1px solid #ddd; padding-top: 8px; }
+    @media print {
+      body { margin: 12mm; }
+      h2 { break-after: avoid; }
+      tr { break-inside: avoid; }
+    }
+  </style></head><body>
+    <div class="head">
+      <div><h1>Plan Trade — ${escHtml(month)}</h1><div class="sub">Apothical · Nanterre Université</div></div>
+      <div class="meta">Édité le ${today}<br>${placedCount} zones remplies · ${laboCount} laboratoires</div>
+    </div>
+    ${bodyHtml || '<p>Aucune opération placée.</p>'}
+    <div class="foot">Document généré par Apothical Planner — ${today}</div>
+  </body></html>`
+
+  const w = window.open('', '_blank')
+  if (!w) { showToast('⚠️  Autorise les pop-ups pour imprimer le plan'); return }
+  w.document.write(html)
+  w.document.close()
+  w.focus()
+  setTimeout(() => w.print(), 400)
 }
