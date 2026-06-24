@@ -12,8 +12,8 @@
      • Project API keys → anon public → CLOUD_CONFIG.anonKey
 */
 const CLOUD_CONFIG = {
-  url:        '',                       // ex : 'https://xxxxxxxx.supabase.co'
-  anonKey:    '',                       // clé "anon public" (PAS la service_role !)
+  url:        'https://qolvysomdrelcdvvtnud.supabase.co',
+  anonKey:    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFvbHZ5c29tZHJlbGNkdnZ0bnVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyODc5NjMsImV4cCI6MjA5Nzg2Mzk2M30.-8kn969ZBbiPulNOq8_DNGBGt6sMrX-bR78SefurxPM',
   ownerEmail: 'pharmanantu@gmail.com',  // seul compte autorisé à écrire
 }
 
