@@ -6,6 +6,7 @@
   <title>Apothical — Plan Trade</title>
   <link rel="stylesheet" href="style.css" />
   <script src="xlsx.min.js"></script>
+  <script src="supabase.min.js"></script>
 </head>
 <body>
 
@@ -84,6 +85,8 @@
     </div>
     <div class="header-right">
       <span class="header-hint" id="header-hint">Importe operations.xlsx pour commencer</span>
+      <button class="cloud-badge" id="cloud-badge" onclick="openCloudModal()" title="État de la synchronisation cloud">☁︎ Local</button>
+      <button class="btn-ghost" onclick="openStatsModal()" title="Statistiques et comparatif mensuel">📊 Stats</button>
       <button class="btn-ghost" onclick="openCheckModal()" title="Vérifier les doublons et conflits du plan">🔎 Vérifier</button>
       <button class="btn-ghost" onclick="printPlan()" title="Version imprimable / PDF du plan placé">🖨 Imprimer</button>
       <button class="btn-ghost" onclick="clearAll()">🗑 Réinitialiser</button>
@@ -572,10 +575,54 @@
     </div>
   </div>
 
+  <!-- ═══ MODAL CONNEXION CLOUD ═══ -->
+  <div id="cloud-overlay" class="modal-overlay" onclick="closeCloudModal()">
+    <div class="modal-panel cloud-panel" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-header-info">
+          <div class="modal-labo-name">☁︎ Connexion propriétaire</div>
+          <div class="modal-dates">Active l'écriture cloud (l'équipe reste en lecture)</div>
+        </div>
+        <button class="modal-close" onclick="closeCloudModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="cloud-form" onsubmit="submitCloudLogin(event)" class="cloud-form">
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="cloud-email" placeholder="pharmanantu@gmail.com" autocomplete="username" required />
+          </div>
+          <div class="form-group">
+            <label>Mot de passe</label>
+            <input type="password" id="cloud-pass" placeholder="••••••••" autocomplete="current-password" required />
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn-cancel" onclick="closeCloudModal()">Annuler</button>
+            <button type="submit" class="btn-primary">🔓 Se connecter</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ MODAL STATS ═══ -->
+  <div id="stats-overlay" class="modal-overlay" onclick="closeStatsModal()">
+    <div class="modal-panel commander-panel" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-header-info">
+          <div class="modal-labo-name">📊 Statistiques &amp; comparatif</div>
+          <div class="modal-dates" id="stats-subtitle"></div>
+        </div>
+        <button class="modal-close" onclick="closeStatsModal()">✕</button>
+      </div>
+      <div class="modal-body" id="stats-body"></div>
+    </div>
+  </div>
+
   <!-- TOAST -->
   <div id="toast"></div>
 
   <script src="plan_data.js"></script>
   <script src="app.js"></script>
+  <script src="cloud.js"></script>
 </body>
 </html>

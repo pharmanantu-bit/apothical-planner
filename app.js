@@ -1229,7 +1229,9 @@ function loadStockFile(file) {
 }
 
 function saveStockToStorage() {
-  try { localStorage.setItem(STOCK_STORAGE_KEY, JSON.stringify({ stock, meta: stockMeta })) } catch (e) {}
+  try { localStorage.setItem(STOCK_STORAGE_KEY, JSON.stringify({ stock, meta: stockMeta }))
+    if (typeof cloudOnGlobalSave === 'function') cloudOnGlobalSave()
+  } catch (e) {}
 }
 
 function restoreStockFromStorage() {
@@ -1478,6 +1480,7 @@ function rotatePlan() {
 function saveRotationToStorage() {
   try {
     localStorage.setItem(ROTATION_STORAGE_KEY, String(planRotation))
+    if (typeof cloudOnGlobalSave === 'function') cloudOnGlobalSave()
   } catch (e) {}
 }
 
@@ -1541,6 +1544,7 @@ function displayPlan(dataURL, fileName) {
 function savePlanToStorage(dataURL, fileName) {
   try {
     localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify({ dataURL, fileName }))
+    if (typeof cloudOnGlobalSave === 'function') cloudOnGlobalSave()
     showToast(`📐  ${fileName} chargé et sauvegardé`)
   } catch (e) {
     showToast(`📐  ${fileName} chargé (fichier trop lourd pour être sauvegardé)`)
@@ -2072,6 +2076,7 @@ function saveDataToStorage() {
     }
     store.currentMonth = currentMonth
     localStorage.setItem(DATA_STORAGE_KEY, JSON.stringify(store))
+    if (typeof cloudOnLocalSave === 'function') cloudOnLocalSave(currentMonth)
   } catch (e) {}
 }
 
@@ -2151,6 +2156,135 @@ function getPlanSections() {
 
 function planOffreLabel(l) {
   return l.hasBri ? `-${l.bri}€ BRI` : l.isApothical ? 'Apothical & Vous' : (l.conditions || '')
+}
+
+// ─── STATISTIQUES & COMPARATIF MENSUEL ───────────────────────────────────────
+
+// "Juin 2026" → clé triable an*12 + mois (réutilise MOIS_FR 1-indexé défini en haut)
+function monthSortKey(label) {
+  if (!label) return -1
+  const m = String(label).trim().match(/^(\S+)\s+(\d{4})$/)
+  if (!m) return -1
+  const idx = MOIS_FR.findIndex(x => x && x.toLowerCase() === m[1].toLowerCase())
+  return idx < 1 ? -1 : parseInt(m[2], 10) * 12 + idx
+}
+
+// Capacité fixe (hors BRI dynamique) : Podium + FA + TG écran + TG1-8 + TG13-26 + IC
+function fixedZoneCapacity() {
+  return 1 + 3 + 4 + TG_1_8.length + TG_13_26.length + 6
+}
+
+function statsForMonth(monthObj) {
+  const ids        = (monthObj && monthObj.placementIds) || {}
+  const zones      = Object.keys(ids)
+  const labosById  = {}
+  ;(monthObj && monthObj.labos || []).forEach(l => { labosById[l.id] = l })
+  const placed     = zones.map(z => labosById[ids[z]]).filter(Boolean)
+  const byType     = { bri: 0, av: 0, tg: 0 }
+  placed.forEach(l => { if (l.hasBri) byType.bri++; else if (l.isApothical) byType.av++; else byType.tg++ })
+  const fixedFilled = zones.filter(z => !z.startsWith('BRI')).length
+  const cap         = fixedZoneCapacity()
+  return {
+    nbPlaced:  zones.length,
+    nbBri:     zones.filter(z => z.startsWith('BRI')).length,
+    nbLabos:   new Set(placed.map(l => l.labo)).size,
+    nbOps:     (monthObj && monthObj.labos || []).length,
+    byType,
+    fixedFilled, cap,
+    fillRate:  cap ? Math.round(fixedFilled / cap * 100) : 0,
+  }
+}
+
+async function openStatsModal() {
+  const overlay = document.getElementById('stats-overlay')
+  const body    = document.getElementById('stats-body')
+  overlay.classList.add('open')
+  body.innerHTML = '<div class="stats-loading">⏳ Chargement des données…</div>'
+  let months = []
+  try { months = (typeof cloudFetchMonths === 'function') ? await cloudFetchMonths() : [] }
+  catch (e) { months = [] }
+  // Fallback local si rien
+  if (!months.length) {
+    const store = (() => { try { return JSON.parse(localStorage.getItem(DATA_STORAGE_KEY)) } catch { return null } })()
+    months = store && store.months ? Object.entries(store.months).map(([mois, d]) => ({ mois, ...d })) : []
+  }
+  renderStats(months)
+}
+
+function closeStatsModal() { document.getElementById('stats-overlay').classList.remove('open') }
+
+function renderStats(months) {
+  const body = document.getElementById('stats-body')
+  const sub  = document.getElementById('stats-subtitle')
+  const valid = months.filter(m => m.mois && monthSortKey(m.mois) > 0)
+                      .sort((a, b) => monthSortKey(a.mois) - monthSortKey(b.mois))
+  if (!valid.length) {
+    sub.textContent = ''
+    body.innerHTML = '<div class="stats-loading">Aucune donnée mensuelle à analyser. Place des opérations puis reviens ici.</div>'
+    return
+  }
+
+  // Mois courant = celui sélectionné s'il existe, sinon le plus récent
+  let curIdx = valid.findIndex(m => m.mois === currentMonth)
+  if (curIdx < 0) curIdx = valid.length - 1
+  const cur  = valid[curIdx]
+  const prev = curIdx > 0 ? valid[curIdx - 1] : null
+  const sCur  = statsForMonth(cur)
+  const sPrev = prev ? statsForMonth(prev) : null
+
+  sub.textContent = `${valid.length} mois enregistrés · focus sur ${cur.mois}`
+
+  const delta = (a, b) => {
+    if (b == null) return ''
+    const d = a - b
+    if (d === 0) return `<span class="stat-delta flat">±0</span>`
+    const up = d > 0
+    return `<span class="stat-delta ${up ? 'up' : 'down'}">${up ? '▲' : '▼'} ${Math.abs(d)}</span>`
+  }
+
+  const card = (label, val, deltaHtml, sub2) => `
+    <div class="stat-card">
+      <div class="stat-card-val">${val}${deltaHtml || ''}</div>
+      <div class="stat-card-label">${label}</div>
+      ${sub2 ? `<div class="stat-card-sub">${sub2}</div>` : ''}
+    </div>`
+
+  const cards = `
+    <div class="stats-cards">
+      ${card('Taux de remplissage', `${sCur.fillRate}%`, delta(sCur.fillRate, sPrev && sPrev.fillRate), `${sCur.fixedFilled}/${sCur.cap} emplacements fixes`)}
+      ${card('Opérations placées', sCur.nbPlaced, delta(sCur.nbPlaced, sPrev && sPrev.nbPlaced), `dont ${sCur.nbBri} BRI rayon`)}
+      ${card('Laboratoires actifs', sCur.nbLabos, delta(sCur.nbLabos, sPrev && sPrev.nbLabos), `${sCur.nbOps} opérations importées`)}
+      ${card('Répartition', `${sCur.byType.tg} / ${sCur.byType.bri} / ${sCur.byType.av}`, '', 'TG / BRI / A&amp;V')}
+    </div>
+    ${prev ? `<div class="stats-compare-note">Comparatif vs <strong>${prev.mois}</strong></div>`
+           : `<div class="stats-compare-note">Pas de mois précédent pour comparer.</div>`}`
+
+  // Tableau historique tous les mois
+  const rows = valid.slice().reverse().map(m => {
+    const s = statsForMonth(m)
+    const when = m._updatedAt ? new Date(m._updatedAt).toLocaleDateString('fr-FR') : '—'
+    const isCur = m.mois === cur.mois
+    return `<tr class="${isCur ? 'row-current' : ''}">
+      <td>${m.mois}${isCur ? ' <span class="row-tag">courant</span>' : ''}</td>
+      <td class="num">${s.fillRate}%</td>
+      <td class="num">${s.nbPlaced}</td>
+      <td class="num">${s.nbBri}</td>
+      <td class="num">${s.nbLabos}</td>
+      <td class="when">${when}</td>
+    </tr>`
+  }).join('')
+
+  const table = `
+    <div class="stats-table-title">Historique mensuel</div>
+    <table class="stats-table">
+      <thead><tr>
+        <th>Mois</th><th class="num">Remplissage</th><th class="num">Placées</th>
+        <th class="num">BRI</th><th class="num">Labos</th><th class="when">Maj</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`
+
+  body.innerHTML = cards + table
 }
 
 // ─── VÉRIFICATION DOUBLONS / CONFLITS ────────────────────────────────────────
