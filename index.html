@@ -71,9 +71,6 @@
       <button class="btn-commander" onclick="openCommanderModal()">
         🛒 Commander
       </button>
-      <button class="btn-depot-modal" onclick="openDepotModal()">
-        📦 Dépôt
-      </button>
       <button class="btn-stock" id="btn-stock" onclick="document.getElementById('stock-file-input').click()" title="Importer l'export de stock de votre logiciel (CIP + quantité)">
         📥 Stock
       </button>
@@ -87,12 +84,20 @@
       <span class="header-hint" id="header-hint">Importe operations.xlsx pour commencer</span>
       <button class="cloud-badge" id="cloud-badge" onclick="openCloudModal()" title="État de la synchronisation cloud">☁︎ Local</button>
       <button class="btn-ghost" onclick="openStatsModal()" title="Statistiques et comparatif mensuel">📊 Stats</button>
-      <button class="btn-ghost" onclick="openCheckModal()" title="Vérifier les doublons et conflits du plan">🔎 Vérifier</button>
-      <button class="btn-ghost" onclick="printPlan()" title="Version imprimable / PDF du plan placé">🖨 Imprimer</button>
-      <button class="btn-ghost" onclick="clearAll()">🗑 Réinitialiser</button>
-      <button class="btn-ghost" onclick="exportExcel()">⬇ Exporter Excel</button>
-      <button class="btn-ghost" onclick="exportBackup()" title="Télécharger une sauvegarde complète (données + plan pharmacie)">💾 Sauvegarder</button>
-      <button class="btn-ghost" onclick="document.getElementById('backup-file-input').click()" title="Restaurer depuis une sauvegarde">📂 Restaurer</button>
+      <div class="more-menu">
+        <button class="btn-ghost more-toggle" onclick="toggleMoreMenu(event)" title="Plus d'actions">⋯ Plus</button>
+        <div class="more-dropdown" id="more-dropdown">
+          <button onclick="closeMoreMenu(); openDepotModal()">📦 Dépôt</button>
+          <button onclick="closeMoreMenu(); openCheckModal()">🔎 Vérifier</button>
+          <button onclick="closeMoreMenu(); printPlan()">🖨 Imprimer</button>
+          <div class="more-sep"></div>
+          <button onclick="closeMoreMenu(); exportExcel()">⬇ Exporter Excel</button>
+          <button onclick="closeMoreMenu(); exportBackup()">💾 Sauvegarder</button>
+          <button onclick="closeMoreMenu(); document.getElementById('backup-file-input').click()">📂 Restaurer</button>
+          <div class="more-sep"></div>
+          <button class="danger" onclick="closeMoreMenu(); clearAll()">🗑 Réinitialiser</button>
+        </div>
+      </div>
       <input type="file" id="backup-file-input" accept=".json" style="display:none" onchange="importBackup(this.files[0])">
     </div>
   </header>

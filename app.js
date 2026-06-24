@@ -1560,6 +1560,8 @@ function restorePlanFromStorage() {
         savePlanToStorage(window.DEFAULT_PLAN.dataURL, window.DEFAULT_PLAN.fileName)
         const savedRotation = parseInt(localStorage.getItem(ROTATION_STORAGE_KEY) || '0', 10)
         if (savedRotation) { planRotation = savedRotation; applyPlanTransform(false) }
+        // Ne pas ouvrir le modal automatiquement au premier chargement
+        document.getElementById('plan-modal').classList.remove('open')
       }
       return
     }
@@ -2212,6 +2214,21 @@ async function openStatsModal() {
 }
 
 function closeStatsModal() { document.getElementById('stats-overlay').classList.remove('open') }
+
+// ─── MENU "⋯ PLUS" ───────────────────────────────────────────────────────────
+function toggleMoreMenu(ev) {
+  if (ev) ev.stopPropagation()
+  document.getElementById('more-dropdown').classList.toggle('open')
+}
+function closeMoreMenu() {
+  const d = document.getElementById('more-dropdown')
+  if (d) d.classList.remove('open')
+}
+// Fermer le menu si on clique ailleurs
+document.addEventListener('click', e => {
+  const menu = e.target.closest('.more-menu')
+  if (!menu) closeMoreMenu()
+})
 
 function renderStats(months) {
   const body = document.getElementById('stats-body')
